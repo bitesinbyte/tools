@@ -1,0 +1,22 @@
+{
+    "name": "bitesinbyte Tools",
+    "short_name": "tools",
+    "id": "./",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#03173d",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "favicons/android-chrome-512x512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        },
+        {
+            "src": "favicons/android-chrome-192x192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        }
+    ]
+}
