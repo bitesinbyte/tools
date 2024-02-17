@@ -1,0 +1,38 @@
+﻿@page "/change-csv-delimiter"
+
+<PageTitle>Easily Change Your CSV Delimiter Online with Our User-Friendly Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Upload and change your CSV delimiter online with our easy-to-use tool. Simplify your data management process and try our online CSV delimiter changer today.">
+</HeadContent>
+
+<MudText Typo="Typo.h5">
+    Change Csv Delimiter
+</MudText>
+
+<MudGrid>
+    <MudItem xs="6">
+        <MudFileUpload Class="ms-5 mb-3" T="IBrowserFile" FilesChanged="UploadFile">
+            <ButtonTemplate>
+                <MudFab HtmlTag="label" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.UploadFile"
+                    Label="Upload Csv File" for="@context" />
+            </ButtonTemplate>
+        </MudFileUpload>
+    </MudItem>
+    <MudItem xs="6">
+        <MudTextField Disabled="!(string.IsNullOrEmpty(ExistingDelimiter))"
+            Placeholder="We are unable to identify old Delimiter" @bind-Value="@ExistingDelimiter"
+            Label="Old Delimiter"></MudTextField>
+    </MudItem>
+    <MudItem xs="12">
+        <MudTextField Label="New Delimiter" Disabled="string.IsNullOrEmpty(ExistingDelimiter)"
+            Placeholder="New Delimiter" @bind-Value="@NewDelimiter"></MudTextField>
+    </MudItem>
+    <MudItem xs="12">
+        <MudFab Color="Color.Primary" Disabled="string.IsNullOrEmpty(ExistingDelimiter)"
+            OnClick="@HandleConvertDelimiterAndDownload" StartIcon="@Icons.Material.Filled.Download"
+            Label="Convert & Download" />
+    </MudItem>
+</MudGrid>
+<GoogleAds Style="display:block" Slot="9551132288" />

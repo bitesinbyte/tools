@@ -1,0 +1,37 @@
+@page "/yaml-schema-validator"
+@using BitesInByte.Tools.Models.SchemaStore;
+
+<PageTitle>Easily Validate Thousands of Yaml Schemas Online with Our Best Validator Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Our online YAML schema validator is the best tool for validating up to thousands of schemas from https://www.schemastore.org. Simplify your data validation process and try it today!">
+</HeadContent>
+<MudText Typo="Typo.h5">
+    YAML Schema Validator
+</MudText>
+<MudText Typo="Typo.body1">Select a schema and enter the YAML below.</MudText>
+
+<MudGrid>
+    <MudItem xs="9">
+        <MudAutocomplete T="string" Label="Schema" @bind-Value="SchemaValue" HelperText="Please Select Schema"
+            SearchFunc="@AutoCompleteSchema" Variant="Variant.Outlined" ProgressIndicatorColor="@(Color.Default)">
+            <ProgressIndicatorInPopoverTemplate>
+                <MudList Clickable="false">
+                    <MudListItem>
+                        Loading...
+                    </MudListItem>
+                </MudList>
+            </ProgressIndicatorInPopoverTemplate>
+        </MudAutocomplete>
+    </MudItem>
+    <MudItem xs="3">
+        <MudFab StartIcon="@Icons.Material.Filled.OpenInNew" Disabled="@(string.IsNullOrEmpty(SchemaValue))"
+            Label="Check Schema" OnClick="HandleOpenSchema" />
+    </MudItem>
+</MudGrid>
+<div class="mt-4">
+    <StandaloneCodeEditor Id="yaml-validator" @ref="_editor" ConstructionOptions="EditorConstructionOptions" />
+    <MudButton OnClick="HandleValidate" Color="Color.Primary" Variant="Variant.Filled">Validate</MudButton>
+</div>
+<GoogleAds Style="display:block" Slot="9551132288" />

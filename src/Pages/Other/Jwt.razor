@@ -1,0 +1,39 @@
+﻿@page "/jwt"
+
+<PageTitle>Decode Your JSON Web Token Online with Our Best Alternative to JWT.io</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Our online JWT decoder is the best alternative to jwt.io for decoding your JSON web token. Simply past and decode your token for easy data access. Try our JWT decoder today!">
+</HeadContent>
+<MudText Typo="Typo.h4">JWT (Json Web Token)</MudText>
+<MudText Typo="Typo.body1">
+    JSON Web Tokens are an open, industry standard <MudLink Href="https://tools.ietf.org/html/rfc7519">RFC 7519
+    </MudLink> method for representing claims securely between two parties.
+</MudText>
+<MudAlert Severity="Severity.Warning">Warning: JWTs are credentials, which can grant access to resources. Be careful
+    where you paste them! We do not record tokens.</MudAlert>
+
+<MudPaper Class="gap-4 d-flex flex-wrap mt-5 justify-center" Elevation="0">
+    <MudGrid>
+        <MudItem xs="6">
+            <MudTextField T="string" Label="Encoded JWT (Json Web Token)" Lines="21" Variant="Variant.Outlined"
+                Placeholder="Add your token here!!" TextChanged="HandleJwtChange" />
+        </MudItem>
+        <MudItem xs="6">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @ref="headerReference" T="string" Label="Header (Algorithm & Token Type)" Lines="4"
+                        ReadOnly=true Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @ref="payoadReference" T="string" Label="Payload (data)" Lines="14"
+                        Variant="Variant.Outlined" ReadOnly=true />
+                </MudItem>
+            </MudGrid>
+
+        </MudItem>
+    </MudGrid>
+
+</MudPaper>
+<GoogleAds Style="display:block" Slot="9551132288" />

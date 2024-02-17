@@ -1,0 +1,32 @@
+﻿@page "/NCrontab"
+
+<PageTitle>Test Your NCrontab/Cron Expressions with Our User-Friendly Expression Tester Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Use our NCrontab expression tester tool to easily test and view the DateTimes of your occurrences. Simplify your workflow and try it today!">
+</HeadContent>
+
+<MudText Typo="Typo.body1">Use the tool below to test out your NCrontab/CRON expression and see the DateTimes of your
+    occurrences.</MudText>
+
+<MudGrid>
+    <MudItem xs="8">
+        <MudTextField TextChanged="HandleTextChanged" @bind-Value="Expression" Label="NCrontab Expression"
+            Variant="Variant.Filled" />
+    </MudItem>
+    <MudItem xs="4">
+        <MudFab StartIcon="@Icons.Material.Filled.AutoMode" Label="Print More" OnClick="HandlePrintMore" />
+        <MudFab StartIcon="@Icons.Material.Filled.ContentCopy" Label="Copy Link" OnClick="HandleCopyLink" />
+    </MudItem>
+</MudGrid>
+<GoogleAds Style="display:block" Slot="9551132288" />
+<label>Occurrences Output:</label>
+<ul class="occurrences-list">
+    @foreach (var occurence in Occurrences)
+    {
+        <li>
+            @occurence.ToString("yyyy-MM-dd HH:mm:ss")
+        </li>
+    }
+</ul>

@@ -1,0 +1,34 @@
+﻿@page "/textCompare"
+
+<PageTitle>Effortlessly Compare Text Online with Our Top Text Comparer Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Upload and compare two text files online with our user-friendly text compare tool. Easily spot differences and streamline your workflow with our easy text compare online solution.">
+</HeadContent>
+
+
+<MudText Typo="Typo.h5">
+    Text OR File Compare
+</MudText>
+
+
+<MudText Typo="Typo.body1">Enter the content of two text files OR upload below to see the differences:</MudText>
+
+<MudGrid>
+    <MudItem>
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="UploadFiles" MaximumFileCount="2">
+            <ButtonTemplate>
+                <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Primary"
+                    StartIcon="@Icons.Material.Filled.CloudUpload" for="@context">
+                    Upload Files
+                </MudButton>
+            </ButtonTemplate>
+        </MudFileUpload>
+    </MudItem>
+</MudGrid>
+
+
+<StandaloneDiffEditor Id="textcompare" @ref="_diffEditor" ConstructionOptions="DiffEditorConstructionOptions"
+    OnDidInit="EditorOnDidInit" />
+<GoogleAds Style="display:block" Slot="9551132288" />

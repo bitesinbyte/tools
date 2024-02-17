@@ -1,0 +1,24 @@
+﻿@page "/jsonToYaml"
+<PageTitle>Effortlessly Convert Your JSON to YAML Online with Our Best Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Our online JSON to YAML converter tool is the best solution for converting your JSON data to YAML format. Simplify your data conversion process and try it today!">
+</HeadContent>
+<MudText Typo="Typo.h5">
+    Json To Yaml
+</MudText>
+<MudGrid>
+    <MudItem xs="5">
+        <StandaloneCodeEditor Id="jsonToYamlSource" @ref="_editorJson"
+            ConstructionOptions="EditorConstructionOptionsJson" />
+    </MudItem>
+    <MudItem xs="2">
+        <MudFab StartIcon="@Icons.Material.Filled.ArrowForward" Label="Convert" Color="Color.Primary"
+            OnClick="HandleConvert" />
+    </MudItem>
+    <MudItem xs="5">
+        <StandaloneCodeEditor Id="jsonToYamlDestination" @ref="_editorYaml"
+            ConstructionOptions="EditorConstructionOptionsYaml" />
+    </MudItem>
+</MudGrid>

@@ -1,0 +1,60 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider @ref="@_mudThemeProvider" @bind-IsDarkMode="@layoutConfig.IsDarkMode" Theme="_theme" />
+
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <img src="favicons/android-chrome-512x512.png" width="25" height="15" />itesInByte
+        <MudIconButton Href="/" Icon="@Icons.Material.Filled.Home" Color="Color.Inherit" Edge="Edge.End" />
+        <MudSpacer />
+        <MudIconButton Href="https://blogs.bitesinbyte.com" Icon="@Icons.Material.Filled.Article" Color="Color.Inherit"
+            Edge="Edge.End" />
+        <MudIconButton Href="https://ko-fi.com/bitesinbyte" Icon="@Icons.Material.Filled.Coffee" Color="Color.Inherit"
+            Edge="Edge.End" />
+        <MudIconButton Href="https://github.com/manishtiwari25" Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit"
+            Edge="Edge.End" />
+        <MudToggleIconButton Toggled="@layoutConfig.IsDarkMode" @bind-Checked="@layoutConfig.IsDarkMode" Class="ma-4"
+            T="bool" Icon="@Icons.Material.Filled.DarkMode" ToggledIcon="@Icons.Material.Filled.LightMode" Title="Off"
+            ToggledChanged="OnToggledChanged" Edge="Edge.End" />
+
+    </MudAppBar>
+    <MudDrawer Open="@drawerRightOpen" Width="@drawerWidth" Fixed="true" ClipMode="DrawerClipMode.Always"
+        Anchor="Anchor.End" Elevation="0">
+        <GoogleAds Style="display:block" Slot="2718717350" />
+    </MudDrawer>
+    <MudDrawer Open="@drawerRightOpen" Width="@drawerWidth" Fixed="true" ClipMode="DrawerClipMode.Always"
+        Anchor="Anchor.Start" Elevation="0">
+        <GoogleAds Style="display:block" Slot="2718717350" />
+    </MudDrawer>
+    <MudMainContent>
+        @if (layoutConfig.RenderedForFirstTime)
+        {
+            <CascadingValue Value="@layoutConfig">
+                <MudPaper Class="pa-4">
+                    @Body
+                </MudPaper>
+            </CascadingValue>
+        }
+        <MudPaper Class="pa-4 justify-content-end">
+            <MudGrid>
+                <MudItem xs="4">
+                    <MudText Align="@Align.Left"> Copyright @DateTime.UtcNow.Year.ToString() bitesinbyte.com</MudText>
+                </MudItem>
+                <MudItem xs="8">
+                    <MudButtonGroup>
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/privacy-policy">Privacy Policy
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Href="/contect">Contect Us</MudButton>
+                    </MudButtonGroup>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2">This website uses cookies. We use cookies to personalise content/ads and
+                        to analyse our traffic.</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudMainContent>
+</MudLayout>

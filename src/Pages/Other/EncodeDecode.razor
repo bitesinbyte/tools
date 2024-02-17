@@ -1,0 +1,77 @@
+﻿@page "/encode-decode"
+
+<MudText Typo="Typo.h5">
+    Encode Or Decode
+</MudText>
+<PageTitle>Effortlessly Encode or Decode Your Data Online with Our User-Friendly Tool</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Our online tool allows you to easily encode or decode your data in various formats such as Base64, HTML, and URLs. Streamline your data management process and try it today!">
+</HeadContent>
+
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Class="mt-3">
+    <MudTabPanel Text="Base64">
+        <MudRadioGroup @bind-SelectedOption=isBase64Encode>
+            <MudRadio Option="true">Encode</MudRadio>
+            <MudRadio Option="false">Decode</MudRadio>
+        </MudRadioGroup>
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="Base64 (Encode OR Decode)" Lines="20" Variant="Variant.Outlined"
+                    Placeholder="Enter your text here!!" @bind-Value="@base64EncodeDecode" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="Result" Lines="20" Variant="Variant.Outlined"
+                    @bind-Value="@base64EncodeDecodeResult" Disabled=true />
+            </MudItem>
+        </MudGrid>
+
+
+        <MudFab Class="mt-3" StartIcon="@Icons.Material.Filled.AutoFixHigh" OnClick="HandleBase64Convert"
+            Label="Convert" />
+    </MudTabPanel>
+    <MudTabPanel Text="URL">
+        <MudRadioGroup @bind-SelectedOption=isUrlEncode>
+            <MudRadio Option="true">Encode</MudRadio>
+            <MudRadio Option="false">Decode</MudRadio>
+        </MudRadioGroup>
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="URL (Encode OR Decode)" Lines="20" Variant="Variant.Outlined"
+                    Placeholder="Enter your text here!!" @bind-Value="@urlEncodeDecode" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="Result" Lines="20" Variant="Variant.Outlined"
+                    @bind-Value="@urlEncodeDecodeResult" Disabled=true />
+            </MudItem>
+        </MudGrid>
+
+        <MudFab Class="mt-3" StartIcon="@Icons.Material.Filled.AutoFixHigh" OnClick="HandleUrlConvert"
+            Label="Convert" />
+    </MudTabPanel>
+
+    <MudTabPanel Text="HTML">
+        <MudRadioGroup @bind-SelectedOption=isHtmlEncode>
+            <MudRadio Option="true">Encode</MudRadio>
+            <MudRadio Option="false">Decode</MudRadio>
+        </MudRadioGroup>
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="URL (Encode OR Decode)" Lines="20" Variant="Variant.Outlined"
+                    Placeholder="Enter your text here!!" @bind-Value="@htmlEncodeDecode" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="Result" Lines="20" Variant="Variant.Outlined"
+                    @bind-Value="@htmlEncodeDecodeResult" Disabled=true />
+            </MudItem>
+        </MudGrid>
+
+        <MudFab Class="mt-3" StartIcon="@Icons.Material.Filled.AutoFixHigh" OnClick="HandleHtmlConvert"
+            Label="Convert" />
+    </MudTabPanel>
+</MudTabs>
+<GoogleAds Style="display:block" Slot="9551132288" />

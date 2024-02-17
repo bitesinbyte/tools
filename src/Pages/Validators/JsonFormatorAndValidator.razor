@@ -1,0 +1,18 @@
+﻿@page "/jsonFormatter"
+
+<PageTitle>Easily Validate and Format Your JSON Online with Our Fast and Reliable Too</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description"
+        content="Our online JSON formatter tool is the best and easiest way to validate and format your JSON. With our fast and reliable solution, you can effortlessly transform your JSON into clean, readable format. Try our easy JSON formatter today!">
+</HeadContent>
+<MudText Typo="Typo.h5">
+    JSON Formatter
+</MudText>
+<MudText Typo="Typo.body1">Enter the JSON below and click "Validate" to Validate the json or Format for formatting:
+</MudText>
+<div class="mt-4">
+    <StandaloneCodeEditor Id="json" @ref="_editor" ConstructionOptions="EditorConstructionOptions" />
+    <MudButton OnClick="HandleFormat" Color="Color.Primary" Variant="Variant.Filled">Format</MudButton>
+</div>
+<GoogleAds Style="display:block" Slot="9551132288" />

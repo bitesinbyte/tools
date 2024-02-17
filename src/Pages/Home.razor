@@ -1,0 +1,37 @@
+@page "/"
+
+<PageTitle>Bites In Bytes - Tools</PageTitle>
+<HeadContent>
+    <meta charset="utf-8">
+    <meta name="description" content="Bites In Bytes, Edmx trimmer, Edmx, yaml validator, odata explorer, odata, jwt">
+</HeadContent>
+
+<MudText Typo="Typo.h5">
+    Bites In Bytes
+</MudText>
+<GoogleAds Style="display:block" Slot="9551132288" />
+
+<MudPaper Class="gap-4 d-flex flex-wrap mt-5 justify-center" Elevation="0">
+    @foreach (var tool in Tools)
+    {
+        <MudPaper Class="flex-auto mud-theme-primary">
+            <MudCard Elevation="5" Class="flex-1 d-flex py-8">
+                <MudCardContent Style="max-width:80%">
+                    <MudText Typo="Typo.h6">@tool.Title</MudText>
+                    <MudText Typo="Typo.body2">@tool.Descripion</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudFab rel="nofollow" Href="@tool.Href" StartIcon="@Icons.Material.Filled.OpenInBrowser" Label="Open"
+                        Color="Color.Default" />
+                </MudCardActions>
+            </MudCard>
+        </MudPaper>
+    }
+    </MudPaper>
+    <MudScrollToTop>
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.KeyboardArrowUp" />
+    </MudScrollToTop>
+
+    @code {
+    private List<Models.ToolsInfo> Tools = Models.ToolsInfo.GetTools();
+}
