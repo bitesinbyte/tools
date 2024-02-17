@@ -1,11 +1,15 @@
 ﻿self.assetsManifest = {
   "assets": [
     {
+      "hash": "sha256-hUdihRGQsekAMK16aYca2Fe0zraNlO4PFYzDTlTELR0=",
+      "url": "03863b6dd3c9498e82a0888fd04a039c.txt"
+    },
+    {
       "hash": "sha256-gg2s3DcAybsDARLxO14dudOi7jhy8s15bLUhr+dfvs4=",
       "url": "ads.txt"
     },
     {
-      "hash": "sha256-JMdwzceZd+AlXc6gaTQGNWitdvqzbFqZuq5pQDuKhsU=",
+      "hash": "sha256-LEw5gyg\/NPec5n6fcuuRzICC+bUu1eY5aW29LRhSRjM=",
       "url": "css\/app.css"
     },
     {
@@ -97,11 +101,11 @@
       "url": "_framework\/icudt_no_CJK.dat"
     },
     {
-      "hash": "sha256-R6JpmlWYVKHw85hD\/ryAxxCdtt4uYis0AvlpTw9JOfI=",
+      "hash": "sha256-daZ2sDITGzko4ocnTogqS81bEF8ibl5EmIZEjYB7XPc=",
       "url": "_framework\/blazor.boot.json"
     },
     {
-      "hash": "sha256-P0CXAgJk6xoYQGofPLJdRm\/crfUZ6BUjEb4eQXOs8WI=",
+      "hash": "sha256-9Mo2uKT\/ZdpYWdhKjQeAx6C6doJEVJhBHnqJkjD5aHs=",
       "url": "_framework\/BitesInByte.Tools.wasm"
     },
     {
@@ -1417,5 +1421,5 @@
       "url": "_content\/MudBlazor\/MudBlazor.min.js"
     }
   ],
-  "version": "9\/cqX0Wk"
+  "version": "6EKX9NaD"
 };
