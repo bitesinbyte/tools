@@ -53,7 +53,7 @@
       "url": "favicons\/mstile-150x150.png"
     },
     {
-      "hash": "sha256-KKPLI\/f3kL8d0kIXfA8TDl1XshMiv4iCJjiuKqst\/CI=",
+      "hash": "sha256-t3h4mWHuceYDSCNE\/KJLK5knxxEM5dhkGkXn\/W0BDFs=",
       "url": "index.html"
     },
     {
@@ -105,11 +105,11 @@
       "url": "_framework\/icudt_no_CJK.dat"
     },
     {
-      "hash": "sha256-hku51v1TfPPg+AIrEQ0oGb1KR25gO2n7VLf5c2MS\/zU=",
+      "hash": "sha256-c1euL4N\/kqhcnnVRknZNS8NHwfezDTz0JtzabQ0Z2xQ=",
       "url": "_framework\/blazor.boot.json"
     },
     {
-      "hash": "sha256-hgR0QnrBF\/yryNPqMHcBW5ho2pYwt4xAhTt0IK4dBQo=",
+      "hash": "sha256-Hg7iAMIRUxB7pg1wOnB0e3tKY\/pAwYyezJFrwoZ\/EoQ=",
       "url": "_framework\/BitesInByte.Tools.wasm"
     },
     {
@@ -1425,5 +1425,5 @@
       "url": "_content\/MudBlazor\/MudBlazor.min.js"
     }
   ],
-  "version": "cVmyIANF"
+  "version": "flXe1+a2"
 };
