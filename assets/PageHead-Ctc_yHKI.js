@@ -1,1 +1,0 @@
-import{U as e,X as t}from"./Typography-C0IdHzab.js";var n=e();function r({title:e,description:r}){return(0,n.jsxs)(t,{children:[(0,n.jsx)(`title`,{children:e}),(0,n.jsx)(`meta`,{name:`description`,content:r})]})}export{r as t};
