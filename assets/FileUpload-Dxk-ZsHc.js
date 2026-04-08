@@ -1,0 +1,1 @@
+import{W as e}from"./Typography-WisVpeWH.js";import{E as t}from"./Grow-B8QqcY4a.js";var n=t((0,e().jsx)(`path`,{d:`M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z`}),`FileUpload`);export{n as t};
