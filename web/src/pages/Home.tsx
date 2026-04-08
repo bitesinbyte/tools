@@ -1,6 +1,18 @@
-import { Box, Typography, Grid, Chip, alpha, useTheme, IconButton, Tooltip } from '@mui/material';
-import { Link } from 'react-router-dom';
-import { tools } from '../data/tools';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  Box,
+  Typography,
+  Grid,
+  Chip,
+  alpha,
+  useTheme,
+  IconButton,
+  Tooltip,
+  TextField,
+  InputAdornment,
+} from '@mui/material';
+import { Link, useNavigate } from 'react-router-dom';
+import { tools, CATEGORIES, type ToolCategory } from '../data/tools';
 import PageHead from '../components/PageHead';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -8,10 +20,80 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import ArticleIcon from '@mui/icons-material/Article';
 import CoffeeIcon from '@mui/icons-material/Coffee';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 
 export default function Home() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const navigate = useNavigate();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<ToolCategory>('All');
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  const filtered = useMemo(() => {
+    let list = tools;
+    if (category !== 'All') {
+      list = list.filter((t) => t.category === category);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q) ||
+          t.category.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [search, category]);
+
+  // Reset selected index when filter changes
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [search, category]);
+
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Cmd/Ctrl+K to focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        const toolsEl = document.getElementById('tools');
+        if (toolsEl) toolsEl.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+
+      // Only handle arrow/enter when search is focused
+      if (document.activeElement !== searchRef.current) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
+      } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < filtered.length) {
+        e.preventDefault();
+        navigate(filtered[selectedIndex].href);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSearch('');
+        setCategory('All');
+        searchRef.current?.blur();
+      }
+    },
+    [filtered, selectedIndex, navigate],
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <>
@@ -56,7 +138,7 @@ export default function Home() {
           >
             <Chip
               icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
-              label="Tools that solve real problems"
+              label={`${tools.length} tools that solve real problems`}
               variant="outlined"
               size="small"
               sx={{
@@ -210,133 +292,281 @@ export default function Home() {
           </Typography>
         </Box>
 
-        {/* Card grid */}
-        <Grid container spacing={2.5}>
-          {tools.map((tool, i) => {
-            const Icon = tool.icon;
-            return (
-              <Grid key={tool.href} size={{ xs: 12, sm: 6 }}>
-                <Box
-                  component={Link}
-                  to={tool.href}
+        {/* Search + Category filter */}
+        <Box sx={{ mb: 4 }}>
+          {/* Search bar */}
+          <TextField
+            inputRef={searchRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tools..."
+            size="small"
+            fullWidth
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {search ? (
+                      <IconButton size="small" onClick={() => setSearch('')}>
+                        <ClearIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    ) : (
+                      <Chip
+                        icon={<KeyboardIcon sx={{ fontSize: 14 }} />}
+                        label={navigator.platform?.includes('Mac') ? '\u2318K' : 'Ctrl+K'}
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                          height: 24,
+                          fontSize: '0.7rem',
+                          borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+                          color: 'text.secondary',
+                        }}
+                      />
+                    )}
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{
+              maxWidth: 480,
+              mx: 'auto',
+              display: 'block',
+              mb: 2.5,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 3,
+                bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.02),
+              },
+            }}
+          />
+
+          {/* Category chips */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+            {CATEGORIES.map((cat) => {
+              const isActive = category === cat;
+              const count = cat === 'All' ? tools.length : tools.filter((t) => t.category === cat).length;
+              return (
+                <Chip
+                  key={cat}
+                  label={`${cat} (${count})`}
+                  size="small"
+                  variant={isActive ? 'filled' : 'outlined'}
+                  onClick={() => setCategory(cat)}
                   sx={{
-                    display: 'block',
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    height: '100%',
-                    opacity: 0,
-                    animation: `hero-fade-up 0.6s cubic-bezier(.16,1,.3,1) ${0.1 + i * 0.08}s forwards`,
+                    fontWeight: isActive ? 600 : 400,
+                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+                    ...(isActive && {
+                      bgcolor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.08),
+                      color: isDark ? '#fff' : '#000',
+                    }),
+                    '&:hover': {
+                      bgcolor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                    },
                   }}
-                >
+                />
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* Results count */}
+        {(search || category !== 'All') && (
+          <Typography
+            color="text.secondary"
+            sx={{ fontSize: '0.875rem', mb: 2, textAlign: 'center' }}
+          >
+            {filtered.length} tool{filtered.length !== 1 ? 's' : ''} found
+            {search && ` for "${search}"`}
+            {category !== 'All' && ` in ${category}`}
+          </Typography>
+        )}
+
+        {/* Keyboard hint */}
+        <Typography
+          color="text.secondary"
+          sx={{
+            fontSize: '0.75rem',
+            mb: 3,
+            textAlign: 'center',
+            display: { xs: 'none', md: 'block' },
+          }}
+        >
+          Use arrow keys to navigate, Enter to open, Escape to clear
+        </Typography>
+
+        {/* Card grid */}
+        {filtered.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <Typography color="text.secondary" sx={{ fontSize: '1.125rem' }}>
+              No tools match your search.
+            </Typography>
+            <Chip
+              label="Clear filters"
+              size="small"
+              onClick={() => {
+                setSearch('');
+                setCategory('All');
+              }}
+              sx={{ mt: 2 }}
+            />
+          </Box>
+        ) : (
+          <Grid container spacing={2.5}>
+            {filtered.map((tool, i) => {
+              const Icon = tool.icon;
+              const isSelected = i === selectedIndex;
+              return (
+                <Grid key={tool.href} size={{ xs: 12, sm: 6 }}>
                   <Box
-                    className="tool-card"
+                    component={Link}
+                    to={tool.href}
+                    id={`tool-card-${i}`}
                     sx={{
+                      display: 'block',
+                      textDecoration: 'none',
+                      color: 'inherit',
                       height: '100%',
-                      p: 3,
-                      borderRadius: '12px',
-                      border: 1,
-                      borderColor: 'divider',
-                      bgcolor: 'background.paper',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer',
-                      /* Glow effect */
-                      '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        inset: -1,
-                        borderRadius: 'inherit',
-                        background: isDark
-                          ? `linear-gradient(135deg, ${alpha('#fafafa', 0.15)}, transparent 60%)`
-                          : `linear-gradient(135deg, ${alpha('#09090b', 0.06)}, transparent 60%)`,
-                        opacity: 0,
-                        transition: 'opacity 0.4s ease',
-                        zIndex: 0,
-                      },
-                      '&:hover': {
-                        borderColor: isDark ? alpha('#fafafa', 0.1) : alpha('#09090b', 0.1),
-                        boxShadow: isDark
-                          ? `0 8px 32px ${alpha('#000', 0.3)}`
-                          : '0 8px 32px rgba(0,0,0,0.06)',
-                        '&::before': { opacity: 1 },
-                      },
+                      opacity: 0,
+                      animation: `hero-fade-up 0.6s cubic-bezier(.16,1,.3,1) ${0.05 + i * 0.03}s forwards`,
                     }}
                   >
-                    {/* Icon */}
                     <Box
+                      className="tool-card"
                       sx={{
-                        display: 'inline-flex',
-                        p: 1.25,
-                        borderRadius: 2,
-                        bgcolor: isDark ? alpha('#fafafa', 0.06) : alpha('#09090b', 0.04),
-                        color: isDark ? alpha('#fafafa', 0.7) : alpha('#09090b', 0.7),
-                        mb: 2,
+                        height: '100%',
+                        p: 3,
+                        borderRadius: '12px',
+                        border: 1,
+                        borderColor: isSelected
+                          ? (isDark ? alpha('#fafafa', 0.3) : alpha('#09090b', 0.3))
+                          : 'divider',
+                        bgcolor: 'background.paper',
                         position: 'relative',
-                        zIndex: 1,
-                        transition: 'background-color 0.3s ease',
-                        '.tool-card:hover &': {
-                          bgcolor: isDark ? alpha('#fafafa', 0.1) : alpha('#09090b', 0.08),
+                        overflow: 'hidden',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                        ...(isSelected && {
+                          boxShadow: isDark
+                            ? `0 0 0 1px ${alpha('#fafafa', 0.15)}, 0 8px 32px ${alpha('#000', 0.3)}`
+                            : `0 0 0 1px ${alpha('#09090b', 0.1)}, 0 8px 32px rgba(0,0,0,0.06)`,
+                        }),
+                        /* Glow effect */
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          inset: -1,
+                          borderRadius: 'inherit',
+                          background: isDark
+                            ? `linear-gradient(135deg, ${alpha('#fafafa', 0.15)}, transparent 60%)`
+                            : `linear-gradient(135deg, ${alpha('#09090b', 0.06)}, transparent 60%)`,
+                          opacity: isSelected ? 1 : 0,
+                          transition: 'opacity 0.4s ease',
+                          zIndex: 0,
+                        },
+                        '&:hover': {
+                          borderColor: isDark ? alpha('#fafafa', 0.1) : alpha('#09090b', 0.1),
+                          boxShadow: isDark
+                            ? `0 8px 32px ${alpha('#000', 0.3)}`
+                            : '0 8px 32px rgba(0,0,0,0.06)',
+                          '&::before': { opacity: 1 },
                         },
                       }}
                     >
-                      <Icon fontSize="small" />
-                    </Box>
+                      {/* Category badge + Icon row */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                        <Box
+                          sx={{
+                            display: 'inline-flex',
+                            p: 1.25,
+                            borderRadius: 2,
+                            bgcolor: isDark ? alpha('#fafafa', 0.06) : alpha('#09090b', 0.04),
+                            color: isDark ? alpha('#fafafa', 0.7) : alpha('#09090b', 0.7),
+                            position: 'relative',
+                            zIndex: 1,
+                            transition: 'background-color 0.3s ease',
+                            '.tool-card:hover &': {
+                              bgcolor: isDark ? alpha('#fafafa', 0.1) : alpha('#09090b', 0.08),
+                            },
+                          }}
+                        >
+                          <Icon fontSize="small" />
+                        </Box>
+                        <Chip
+                          label={tool.category}
+                          size="small"
+                          variant="outlined"
+                          sx={{
+                            height: 22,
+                            fontSize: '0.675rem',
+                            fontWeight: 500,
+                            borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                            color: 'text.secondary',
+                            position: 'relative',
+                            zIndex: 1,
+                          }}
+                        />
+                      </Box>
 
-                    {/* Title */}
-                    <Typography
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '1rem',
-                        mb: 0.75,
-                        position: 'relative',
-                        zIndex: 1,
-                        letterSpacing: '-0.01em',
-                      }}
-                    >
-                      {tool.title}
-                    </Typography>
+                      {/* Title */}
+                      <Typography
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: '1rem',
+                          mb: 0.75,
+                          position: 'relative',
+                          zIndex: 1,
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        {tool.title}
+                      </Typography>
 
-                    {/* Description */}
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: 'text.secondary',
-                        lineHeight: 1.6,
-                        position: 'relative',
-                        zIndex: 1,
-                        mb: 2,
-                      }}
-                    >
-                      {tool.description}
-                    </Typography>
+                      {/* Description */}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'text.secondary',
+                          lineHeight: 1.6,
+                          position: 'relative',
+                          zIndex: 1,
+                          mb: 2,
+                        }}
+                      >
+                        {tool.description}
+                      </Typography>
 
-                    {/* Open link */}
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        color: 'text.secondary',
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        position: 'relative',
-                        zIndex: 1,
-                        transition: 'color 0.2s ease, transform 0.2s ease',
-                        '.tool-card:hover &': {
-                          color: 'text.primary',
-                        },
-                      }}
-                    >
-                      Open tool
-                      <ArrowForwardIcon sx={{ fontSize: 14 }} />
+                      {/* Open link */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          color: 'text.secondary',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          position: 'relative',
+                          zIndex: 1,
+                          transition: 'color 0.2s ease, transform 0.2s ease',
+                          '.tool-card:hover &': {
+                            color: 'text.primary',
+                          },
+                        }}
+                      >
+                        Open tool
+                        <ArrowForwardIcon sx={{ fontSize: 14 }} />
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
-              </Grid>
-            );
-          })}
-        </Grid>
+                </Grid>
+              );
+            })}
+          </Grid>
+        )}
       </Box>
     </>
   );

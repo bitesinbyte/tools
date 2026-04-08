@@ -34,6 +34,17 @@ const ApiFormatConverter = lazy(() => import('./pages/tools/ApiFormatConverter')
 const FunctionCallBuilder = lazy(() => import('./pages/tools/FunctionCallBuilder'));
 const TextChunker = lazy(() => import('./pages/tools/TextChunker'));
 const EmbeddingVisualizer = lazy(() => import('./pages/tools/EmbeddingVisualizer'));
+const StructuredOutputValidator = lazy(() => import('./pages/tools/StructuredOutputValidator'));
+const CssMinifier = lazy(() => import('./pages/tools/CssMinifier'));
+const JsonPathEvaluator = lazy(() => import('./pages/tools/JsonPathEvaluator'));
+const CronTranslator = lazy(() => import('./pages/tools/CronTranslator'));
+const DiffToPatch = lazy(() => import('./pages/tools/DiffToPatch'));
+const BaseConverter = lazy(() => import('./pages/tools/BaseConverter'));
+const ChmodCalculator = lazy(() => import('./pages/tools/ChmodCalculator'));
+const HttpStatusCodes = lazy(() => import('./pages/tools/HttpStatusCodes'));
+const CidrCalculator = lazy(() => import('./pages/tools/CidrCalculator'));
+const ModelContextWindow = lazy(() => import('./pages/tools/ModelContextWindow'));
+const TiktokenPlayground = lazy(() => import('./pages/tools/TiktokenPlayground'));
 
 function Loading() {
   return (
@@ -79,6 +90,17 @@ export default function App() {
           <Route path="/function-schema" element={<FunctionCallBuilder />} />
           <Route path="/text-chunker" element={<TextChunker />} />
           <Route path="/embeddings" element={<EmbeddingVisualizer />} />
+          <Route path="/structured-output" element={<StructuredOutputValidator />} />
+          <Route path="/css-minifier" element={<CssMinifier />} />
+          <Route path="/json-path" element={<JsonPathEvaluator />} />
+          <Route path="/cron-translator" element={<CronTranslator />} />
+          <Route path="/diff-patch" element={<DiffToPatch />} />
+          <Route path="/base-converter" element={<BaseConverter />} />
+          <Route path="/chmod" element={<ChmodCalculator />} />
+          <Route path="/http-status" element={<HttpStatusCodes />} />
+          <Route path="/cidr" element={<CidrCalculator />} />
+          <Route path="/context-windows" element={<ModelContextWindow />} />
+          <Route path="/tiktoken" element={<TiktokenPlayground />} />
           {/* Legacy redirects for old URLs */}
           <Route path="/jsonFormatter" element={<JsonFormatter />} />
           <Route path="/yaml-schema-validator" element={<YamlValidator />} />
