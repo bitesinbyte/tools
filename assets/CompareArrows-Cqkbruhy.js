@@ -1,0 +1,1 @@
+import{W as e}from"./Typography-WisVpeWH.js";import{E as t}from"./Grow-B8QqcY4a.js";var n=t((0,e().jsx)(`path`,{d:`M9.01 14H2v2h7.01v3L13 15l-3.99-4zm5.98-1v-3H22V8h-7.01V5L11 9z`}),`CompareArrows`);export{n as t};

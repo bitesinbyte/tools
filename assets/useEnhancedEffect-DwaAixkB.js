@@ -1,0 +1,1 @@
+import{T as e,j as t}from"./Grow-B8QqcY4a.js";function n(e,t=166){let n;function r(...r){clearTimeout(n),n=setTimeout(()=>{e.apply(this,r)},t)}return r.clear=()=>{clearTimeout(n)},r}var r=n;function i(t){return e(t).defaultView||window}var a=i,o=t;export{n as a,r as i,a as n,i as r,o as t};
