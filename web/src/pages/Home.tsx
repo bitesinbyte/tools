@@ -120,9 +120,9 @@ export default function Home() {
             inset: 0,
             background: isDark
               ? 'linear-gradient(-45deg, #121216, #0f0e11, #101114, #0b0b0e)'
-              : `linear-gradient(-45deg, ${alpha(theme.palette.primary.main, 0.03)}, ${alpha(theme.palette.secondary.main, 0.06)}, ${alpha(theme.palette.primary.main, 0.02)}, ${alpha(theme.palette.secondary.main, 0.04)})`,
+              : 'transparent',
             backgroundSize: '400% 400%',
-            animation: 'gradient-shift 12s ease infinite',
+            animation: isDark ? 'gradient-shift 12s ease infinite' : 'none',
             zIndex: -1,
           },
         }}
@@ -143,7 +143,7 @@ export default function Home() {
               size="small"
               sx={{
                 backdropFilter: 'blur(4px)',
-                bgcolor: isDark ? alpha('#fff', 0.04) : alpha('#000', 0.02),
+                bgcolor: 'transparent',
                 borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
                 px: 1,
                 fontSize: '0.875rem',
