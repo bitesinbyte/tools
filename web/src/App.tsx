@@ -11,8 +11,7 @@ const TextCompare = lazy(() => import('./pages/tools/TextCompare'));
 const EncodeDecode = lazy(() => import('./pages/tools/EncodeDecode'));
 const CsvDelimiter = lazy(() => import('./pages/tools/CsvDelimiter'));
 const CronTester = lazy(() => import('./pages/tools/CronTester'));
-const JsonToYaml = lazy(() => import('./pages/tools/JsonToYaml'));
-const YamlToJson = lazy(() => import('./pages/tools/YamlToJson'));
+const JsonYamlConverter = lazy(() => import('./pages/tools/JsonYamlConverter'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 function Loading() {
@@ -29,15 +28,23 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
+          {/* New clean routes */}
+          <Route path="/json-formatter" element={<JsonFormatter />} />
+          <Route path="/yaml-validator" element={<YamlValidator />} />
+          <Route path="/jwt" element={<JwtDecoder />} />
+          <Route path="/text-compare" element={<TextCompare />} />
+          <Route path="/encode-decode" element={<EncodeDecode />} />
+          <Route path="/csv-delimiter" element={<CsvDelimiter />} />
+          <Route path="/cron" element={<CronTester />} />
+          <Route path="/json-yaml" element={<JsonYamlConverter />} />
+          {/* Legacy redirects for old URLs */}
           <Route path="/jsonFormatter" element={<JsonFormatter />} />
           <Route path="/yaml-schema-validator" element={<YamlValidator />} />
-          <Route path="/jwt" element={<JwtDecoder />} />
           <Route path="/textCompare" element={<TextCompare />} />
-          <Route path="/encode-decode" element={<EncodeDecode />} />
           <Route path="/change-csv-delimiter" element={<CsvDelimiter />} />
           <Route path="/NCrontab" element={<CronTester />} />
-          <Route path="/jsonToYaml" element={<JsonToYaml />} />
-          <Route path="/yamlToJson" element={<YamlToJson />} />
+          <Route path="/jsonToYaml" element={<JsonYamlConverter />} />
+          <Route path="/yamlToJson" element={<JsonYamlConverter />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         </Route>
       </Routes>
