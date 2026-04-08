@@ -13,6 +13,19 @@ const CsvDelimiter = lazy(() => import('./pages/tools/CsvDelimiter'));
 const CronTester = lazy(() => import('./pages/tools/CronTester'));
 const JsonYamlConverter = lazy(() => import('./pages/tools/JsonYamlConverter'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const UuidGenerator = lazy(() => import('./pages/tools/UuidGenerator'));
+const HashGenerator = lazy(() => import('./pages/tools/HashGenerator'));
+const Base64ImageEncoder = lazy(() => import('./pages/tools/Base64ImageEncoder'));
+const ColorConverter = lazy(() => import('./pages/tools/ColorConverter'));
+const RegexTester = lazy(() => import('./pages/tools/RegexTester'));
+const LoremIpsumGenerator = lazy(() => import('./pages/tools/LoremIpsumGenerator'));
+const MarkdownPreview = lazy(() => import('./pages/tools/MarkdownPreview'));
+const UrlParser = lazy(() => import('./pages/tools/UrlParser'));
+const TimestampConverter = lazy(() => import('./pages/tools/TimestampConverter'));
+const QrCodeGenerator = lazy(() => import('./pages/tools/QrCodeGenerator'));
+const HtmlEntityEncoder = lazy(() => import('./pages/tools/HtmlEntityEncoder'));
+const SqlFormatter = lazy(() => import('./pages/tools/SqlFormatter'));
+const JsonToTypescript = lazy(() => import('./pages/tools/JsonToTypescript'));
 
 function Loading() {
   return (
@@ -37,6 +50,19 @@ export default function App() {
           <Route path="/csv-delimiter" element={<CsvDelimiter />} />
           <Route path="/cron" element={<CronTester />} />
           <Route path="/json-yaml" element={<JsonYamlConverter />} />
+          <Route path="/uuid" element={<UuidGenerator />} />
+          <Route path="/hash" element={<HashGenerator />} />
+          <Route path="/base64-image" element={<Base64ImageEncoder />} />
+          <Route path="/color-converter" element={<ColorConverter />} />
+          <Route path="/regex" element={<RegexTester />} />
+          <Route path="/lorem-ipsum" element={<LoremIpsumGenerator />} />
+          <Route path="/markdown" element={<MarkdownPreview />} />
+          <Route path="/url-parser" element={<UrlParser />} />
+          <Route path="/timestamp" element={<TimestampConverter />} />
+          <Route path="/qr-code" element={<QrCodeGenerator />} />
+          <Route path="/html-entities" element={<HtmlEntityEncoder />} />
+          <Route path="/sql-formatter" element={<SqlFormatter />} />
+          <Route path="/json-to-typescript" element={<JsonToTypescript />} />
           {/* Legacy redirects for old URLs */}
           <Route path="/jsonFormatter" element={<JsonFormatter />} />
           <Route path="/yaml-schema-validator" element={<YamlValidator />} />

@@ -37,4 +37,56 @@
         <loc>https://tools.bitesinbyte.com/cron</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/uuid</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/hash</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/base64-image</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/color-converter</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/regex</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/lorem-ipsum</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/markdown</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/url-parser</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/timestamp</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/qr-code</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/html-entities</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/sql-formatter</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/json-to-typescript</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
 </urlset>
