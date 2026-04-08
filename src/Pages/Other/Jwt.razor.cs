@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
@@ -8,11 +8,12 @@ namespace BitesInByte.Tools.Pages.Other;
 
 public partial class Jwt
 {
-    private MudTextField<string> headerReference;
-    private MudTextField<string> payoadReference;
+    private string? headerText;
+    private string? payloadText;
 
     [Inject]
-    private ISnackbar Snackbar { get; set; }
+    private ISnackbar Snackbar { get; set; } = null!;
+
     private void HandleJwtChange(string token)
     {
         try
@@ -25,11 +26,8 @@ public partial class Jwt
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(UnicodeRanges.All)
             };
 
-            var header = JsonSerializer.Serialize(jwtDecoded.Header, options);
-            headerReference.SetText(header);
-
-            var payload = JsonSerializer.Serialize(jwtDecoded.Payload, options);
-            payoadReference.SetText(payload);
+            headerText = JsonSerializer.Serialize(jwtDecoded?.Header, options);
+            payloadText = JsonSerializer.Serialize(jwtDecoded?.Payload, options);
         }
         catch
         {

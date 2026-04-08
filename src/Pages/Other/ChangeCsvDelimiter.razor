@@ -1,4 +1,4 @@
-﻿@page "/change-csv-delimiter"
+@page "/change-csv-delimiter"
 
 <PageTitle>Easily Change Your CSV Delimiter Online with Our User-Friendly Tool</PageTitle>
 <HeadContent>
@@ -8,16 +8,16 @@
 </HeadContent>
 
 <MudText Typo="Typo.h5">
-    Change Csv Delimiter
+    Change CSV Delimiter
 </MudText>
 
 <MudGrid>
     <MudItem xs="6">
         <MudFileUpload Class="ms-5 mb-3" T="IBrowserFile" FilesChanged="UploadFile">
-            <ButtonTemplate>
-                <MudFab HtmlTag="label" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.UploadFile"
-                    Label="Upload Csv File" for="@context" />
-            </ButtonTemplate>
+            <CustomContent>
+                <MudFab Color="Color.Secondary" StartIcon="@Icons.Material.Filled.UploadFile"
+                    Label="Upload CSV File" OnClick="@context.OpenFilePickerAsync" />
+            </CustomContent>
         </MudFileUpload>
     </MudItem>
     <MudItem xs="6">

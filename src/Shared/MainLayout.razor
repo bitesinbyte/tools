@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 <MudThemeProvider @ref="@_mudThemeProvider" @bind-IsDarkMode="@layoutConfig.IsDarkMode" Theme="_theme" />
 
@@ -16,9 +16,9 @@
             Edge="Edge.End" />
         <MudIconButton Href="https://github.com/manishtiwari25" Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit"
             Edge="Edge.End" />
-        <MudToggleIconButton Toggled="@layoutConfig.IsDarkMode" @bind-Checked="@layoutConfig.IsDarkMode" Class="ma-4"
-            T="bool" Icon="@Icons.Material.Filled.DarkMode" ToggledIcon="@Icons.Material.Filled.LightMode" Title="Off"
-            ToggledChanged="OnToggledChanged" Edge="Edge.End" />
+        <MudToggleIconButton Toggled="@layoutConfig.IsDarkMode"
+            Icon="@Icons.Material.Filled.DarkMode" ToggledIcon="@Icons.Material.Filled.LightMode"
+            ToggledChanged="OnToggledChanged" Edge="Edge.End" Class="ma-4" />
 
     </MudAppBar>
     <MudMainContent>
@@ -40,7 +40,7 @@
                         <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/privacy-policy">Privacy Policy
                         </MudButton>
                         <MudButton Variant="Variant.Text"
-                            Href="https://github.com/bitesinbyte/tools/discussions/categories/q-a">Contect Us
+                            Href="https://github.com/bitesinbyte/tools/discussions/categories/q-a">Contact Us
                         </MudButton>
                     </MudButtonGroup>
                 </MudItem>

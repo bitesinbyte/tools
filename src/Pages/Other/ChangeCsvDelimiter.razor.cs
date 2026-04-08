@@ -1,4 +1,4 @@
-﻿using CsvHelper;
+using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -11,15 +11,16 @@ namespace BitesInByte.Tools.Pages.Other;
 
 public partial class ChangeCsvDelimiter
 {
-    public string ExistingDelimiter { get; set; }
-    public string NewDelimiter { get; set; }
-    private List<dynamic> csvData;
-    private string filePath;
+    public string ExistingDelimiter { get; set; } = string.Empty;
+    public string NewDelimiter { get; set; } = string.Empty;
+    private List<dynamic> csvData = [];
+    private string filePath = string.Empty;
 
     [Inject]
-    ISnackbar SnackbarStack { get; set; }
+    private ISnackbar SnackbarStack { get; set; } = null!;
+
     [Inject]
-    private IJSRuntime JS { get; set; }
+    private IJSRuntime JS { get; set; } = null!;
 
     private async Task UploadFile(IBrowserFile file)
     {
@@ -38,30 +39,30 @@ public partial class ChangeCsvDelimiter
             var streamcontent = await fileContent.ReadAsStreamAsync();
             using var streamreader = new StreamReader(streamcontent);
             ExistingDelimiter = DetectDelimiter(streamreader);
-            SnackbarStack.Add("Successfully loaded the csv.");
+            SnackbarStack.Add("Successfully loaded the CSV.");
         }
         catch
         {
             SnackbarStack.Add("Something went wrong!!", Severity.Error);
         }
     }
+
     public static string DetectDelimiter(StreamReader reader)
     {
-        // assume one of following delimiters
         var possibleDelimiters = new List<string> { ",", ";", "\t", "|" };
-
         var headerLine = reader.ReadLine();
 
-        // reset the reader to initial position for outside reuse
-        // Eg. Csv helper won't find header line, because it has been read in the Reader
         reader.BaseStream.Position = 0;
         reader.DiscardBufferedData();
 
-        foreach (var possibleDelimiter in possibleDelimiters)
+        if (headerLine is not null)
         {
-            if (headerLine.Contains(possibleDelimiter))
+            foreach (var possibleDelimiter in possibleDelimiters)
             {
-                return possibleDelimiter;
+                if (headerLine.Contains(possibleDelimiter))
+                {
+                    return possibleDelimiter;
+                }
             }
         }
 
@@ -86,7 +87,7 @@ public partial class ChangeCsvDelimiter
             {
                 var outputCsv = new CsvWriter(sw, option);
                 await outputCsv.WriteRecordsAsync(csvData);
-                SnackbarStack.Add("Successfully converted csv", Severity.Success);
+                SnackbarStack.Add("Successfully converted CSV", Severity.Success);
                 sw.Close();
             }
             var data = await File.ReadAllTextAsync(filePath);

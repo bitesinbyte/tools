@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using System.Net;
-using System.Web;
 
 namespace BitesInByte.Tools.Pages.Other;
 
@@ -11,16 +10,18 @@ public partial class EncodeDecode
     private bool isUrlEncode = true;
     private bool isHtmlEncode = true;
 
-    private string base64EncodeDecode;
-    private string base64EncodeDecodeResult;
+    private string base64EncodeDecode = string.Empty;
+    private string base64EncodeDecodeResult = string.Empty;
 
-    private string urlEncodeDecode;
-    private string urlEncodeDecodeResult;
+    private string urlEncodeDecode = string.Empty;
+    private string urlEncodeDecodeResult = string.Empty;
 
-    private string htmlEncodeDecode;
-    private string htmlEncodeDecodeResult;
+    private string htmlEncodeDecode = string.Empty;
+    private string htmlEncodeDecodeResult = string.Empty;
+
     [Inject]
-    private ISnackbar Snackbar { get; set; }
+    private ISnackbar Snackbar { get; set; } = null!;
+
     private void HandleBase64Convert()
     {
         try
@@ -66,7 +67,7 @@ public partial class EncodeDecode
                 htmlEncodeDecodeResult = WebUtility.HtmlEncode(htmlEncodeDecode);
                 return;
             }
-            htmlEncodeDecodeResult = WebUtility.HtmlDecode(htmlEncodeDecode);
+            htmlEncodeDecodeResult = WebUtility.HtmlDecode(htmlEncodeDecode) ?? string.Empty;
         }
         catch
         {

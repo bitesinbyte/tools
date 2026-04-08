@@ -1,10 +1,10 @@
-﻿@page "/jwt"
+@page "/jwt"
 
 <PageTitle>Decode Your JSON Web Token Online with Our Best Alternative to JWT.io</PageTitle>
 <HeadContent>
     <meta charset="utf-8">
     <meta name="description"
-        content="Our online JWT decoder is the best alternative to jwt.io for decoding your JSON web token. Simply past and decode your token for easy data access. Try our JWT decoder today!">
+        content="Our online JWT decoder is the best alternative to jwt.io for decoding your JSON web token. Simply paste and decode your token for easy data access. Try our JWT decoder today!">
 </HeadContent>
 <MudText Typo="Typo.h4">JWT (Json Web Token)</MudText>
 <MudText Typo="Typo.body1">
@@ -23,12 +23,12 @@
         <MudItem xs="6">
             <MudGrid>
                 <MudItem xs="12">
-                    <MudTextField @ref="headerReference" T="string" Label="Header (Algorithm & Token Type)" Lines="4"
-                        ReadOnly=true Variant="Variant.Outlined" />
+                    <MudTextField T="string" Label="Header (Algorithm & Token Type)" Lines="4"
+                        ReadOnly=true Variant="Variant.Outlined" Value="@headerText" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @ref="payoadReference" T="string" Label="Payload (data)" Lines="14"
-                        Variant="Variant.Outlined" ReadOnly=true />
+                    <MudTextField T="string" Label="Payload (data)" Lines="14"
+                        Variant="Variant.Outlined" ReadOnly=true Value="@payloadText" />
                 </MudItem>
             </MudGrid>
 

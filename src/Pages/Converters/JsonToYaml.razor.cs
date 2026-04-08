@@ -1,26 +1,25 @@
-﻿using BlazorMonaco.Editor;
+using BitesInByte.Tools.Models;
+using BlazorMonaco.Editor;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
 using System.Dynamic;
-using System.Text.Json;
-using YamlConverter;
 using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
-using BitesInByte.Tools.Models;
 
 namespace BitesInByte.Tools.Pages.Converters;
 
 public partial class JsonToYaml
 {
     [CascadingParameter]
-    public LayoutConfig LayoutConfig { get; set; }
+    public LayoutConfig LayoutConfig { get; set; } = null!;
 
     private StandaloneCodeEditor _editorJson = null!;
     private StandaloneCodeEditor _editorYaml = null!;
+
     [Inject]
-    public ISnackbar Snackbar { get; set; }
+    public ISnackbar Snackbar { get; set; } = null!;
+
     private StandaloneEditorConstructionOptions EditorConstructionOptionsJson(StandaloneCodeEditor editor)
     {
         return new StandaloneEditorConstructionOptions
@@ -59,14 +58,15 @@ public partial class JsonToYaml
             var json = await _editorJson.GetValue();
             if (string.IsNullOrEmpty(json))
             {
-                Snackbar.Add("Please enter json", Severity.Error);
+                Snackbar.Add("Please enter JSON", Severity.Error);
+                return;
             }
 
             var expConverter = new ExpandoObjectConverter();
-            dynamic deserializedObject = JsonConvert.DeserializeObject<ExpandoObject>(json, expConverter);
+            dynamic? deserializedObject = JsonConvert.DeserializeObject<ExpandoObject>(json, expConverter);
 
             var serializer = new Serializer();
-            string yaml = serializer.Serialize(deserializedObject);
+            string yaml = serializer.Serialize(deserializedObject!);
             await _editorYaml.SetValue(yaml);
         }
         catch

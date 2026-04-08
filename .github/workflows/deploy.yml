@@ -3,27 +3,38 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+
 permissions:
   contents: write
+
 jobs:
   deploy-to-github-pages:
     concurrency: ci-${{ github.ref }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup .NET Core SDK
+
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.x
-      - name: Publish .NET Core Project
+          dotnet-version: 10.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/BitesInByte.Tools.csproj
+
+      - name: Publish project
         run: dotnet publish src/BitesInByte.Tools.csproj -c Release -o release --nologo
-      - name: Change base-tag in index.html from / to tools
+
+      - name: Change base-tag in index.html
         run: sed -i 's/<base href="\/" \/>/<base href="https\:\/\/tools.bitesinbyte.com\/" \/>/g' release/wwwroot/index.html
-      - name: copy index.html to 404.html
+
+      - name: Copy index.html to 404.html
         run: cp release/wwwroot/index.html release/wwwroot/404.html
+
       - name: Add .nojekyll file
         run: touch release/wwwroot/.nojekyll
-      - name: Commit wwwroot to GitHub Pages
+
+      - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: release/wwwroot

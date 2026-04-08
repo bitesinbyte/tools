@@ -1,4 +1,4 @@
-﻿@page "/encode-decode"
+@page "/encode-decode"
 
 <MudText Typo="Typo.h5">
     Encode Or Decode
@@ -10,11 +10,11 @@
         content="Our online tool allows you to easily encode or decode your data in various formats such as Base64, HTML, and URLs. Streamline your data management process and try it today!">
 </HeadContent>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Class="mt-3">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-3">
     <MudTabPanel Text="Base64">
-        <MudRadioGroup @bind-SelectedOption=isBase64Encode>
-            <MudRadio Option="true">Encode</MudRadio>
-            <MudRadio Option="false">Decode</MudRadio>
+        <MudRadioGroup T="bool" @bind-Value="isBase64Encode">
+            <MudRadio T="bool" Value="true">Encode</MudRadio>
+            <MudRadio T="bool" Value="false">Decode</MudRadio>
         </MudRadioGroup>
 
         <MudGrid>
@@ -33,9 +33,9 @@
             Label="Convert" />
     </MudTabPanel>
     <MudTabPanel Text="URL">
-        <MudRadioGroup @bind-SelectedOption=isUrlEncode>
-            <MudRadio Option="true">Encode</MudRadio>
-            <MudRadio Option="false">Decode</MudRadio>
+        <MudRadioGroup T="bool" @bind-Value="isUrlEncode">
+            <MudRadio T="bool" Value="true">Encode</MudRadio>
+            <MudRadio T="bool" Value="false">Decode</MudRadio>
         </MudRadioGroup>
 
         <MudGrid>
@@ -54,14 +54,14 @@
     </MudTabPanel>
 
     <MudTabPanel Text="HTML">
-        <MudRadioGroup @bind-SelectedOption=isHtmlEncode>
-            <MudRadio Option="true">Encode</MudRadio>
-            <MudRadio Option="false">Decode</MudRadio>
+        <MudRadioGroup T="bool" @bind-Value="isHtmlEncode">
+            <MudRadio T="bool" Value="true">Encode</MudRadio>
+            <MudRadio T="bool" Value="false">Decode</MudRadio>
         </MudRadioGroup>
 
         <MudGrid>
             <MudItem xs="6">
-                <MudTextField T="string" Label="URL (Encode OR Decode)" Lines="20" Variant="Variant.Outlined"
+                <MudTextField T="string" Label="HTML (Encode OR Decode)" Lines="20" Variant="Variant.Outlined"
                     Placeholder="Enter your text here!!" @bind-Value="@htmlEncodeDecode" />
             </MudItem>
             <MudItem xs="6">

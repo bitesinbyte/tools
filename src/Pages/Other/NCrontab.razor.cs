@@ -1,8 +1,7 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
 using NCrontab;
-
 
 namespace BitesInByte.Tools.Pages.Other;
 
@@ -10,17 +9,22 @@ public partial class NCrontab
 {
     private const string DefaultCronExpression = "0 0 12 * */2 Mon";
     private readonly DateTime startDate = DateTime.Today;
+
     [CascadingParameter]
     public bool IsDarkMode { get; set; }
+
     [Parameter]
     [SupplyParameterFromQuery(Name = "expression")]
-    public string Expression { get; set; }
+    public string Expression { get; set; } = DefaultCronExpression;
+
     private CrontabSchedule cronSchedule = CrontabSchedule.Parse(DefaultCronExpression, new CrontabSchedule.ParseOptions { IncludingSeconds = true });
-    private readonly List<DateTime> Occurrences = new();
+    private readonly List<DateTime> Occurrences = [];
+
     [Inject]
-    private IJSRuntime JS { get; set; }
+    private IJSRuntime JS { get; set; } = null!;
+
     [Inject]
-    public ISnackbar Snackbar { get; set; }
+    public ISnackbar Snackbar { get; set; } = null!;
 
     private bool isExpression6PartFormat = true;
     private bool isExpressionValid = true;
@@ -40,10 +44,12 @@ public partial class NCrontab
         var url = $"https://tools.bitesinbyte.com/NCrontab?expression={readableCron}";
         await JS.InvokeVoidAsync("clipboardCopy.copyText", url);
     }
+
     public void HandleTextChanged()
     {
         SetExpression();
     }
+
     protected override void OnInitialized()
     {
         TransformExpression();
@@ -57,6 +63,7 @@ public partial class NCrontab
         }
         Expression = ReadableQueryToCron(Expression);
     }
+
     private void PrintOccurrences()
     {
         var mostRecentDate = Occurrences.Count == 0 ? startDate : Occurrences.Last();
@@ -66,6 +73,7 @@ public partial class NCrontab
             Occurrences.Add(mostRecentDate);
         }
     }
+
     private void SetExpression()
     {
         TransformExpression();
@@ -86,6 +94,7 @@ public partial class NCrontab
             isExpressionValid = false;
         }
     }
+
     private static string CronToReadableQuery(string query) => query.Replace(' ', '+');
     private static string ReadableQueryToCron(string query) => query.Replace('+', ' ');
 }

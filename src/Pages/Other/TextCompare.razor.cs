@@ -1,4 +1,4 @@
-﻿using BitesInByte.Tools.Models;
+using BitesInByte.Tools.Models;
 using BlazorMonaco.Editor;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -9,11 +9,13 @@ namespace BitesInByte.Tools.Pages.Other;
 public partial class TextCompare
 {
     private StandaloneDiffEditor _diffEditor = null!;
+
     [CascadingParameter]
-    public LayoutConfig LayoutConfig { get; set; }
+    public LayoutConfig LayoutConfig { get; set; } = null!;
 
     [Inject]
-    private IJSRuntime JS { get; set; }
+    private IJSRuntime JS { get; set; } = null!;
+
     private StandaloneDiffEditorConstructionOptions DiffEditorConstructionOptions(StandaloneDiffEditor editor)
     {
         return new StandaloneDiffEditorConstructionOptions
@@ -26,10 +28,11 @@ public partial class TextCompare
             Theme = LayoutConfig.IsDarkMode ? "vs-dark" : "vs"
         };
     }
+
     private async Task EditorOnDidInit()
     {
         // Get or create the original model
-        TextModel original_model = await Global.GetModel(JS, "sample-diff-editor-originalModel");
+        var original_model = await Global.GetModel(JS, "sample-diff-editor-originalModel");
         if (original_model == null)
         {
             var original_value = "Enter Here...";
@@ -37,7 +40,7 @@ public partial class TextCompare
         }
 
         // Get or create the modified model
-        TextModel modified_model = await Global.GetModel(JS, "sample-diff-editor-modifiedModel");
+        var modified_model = await Global.GetModel(JS, "sample-diff-editor-modifiedModel");
         if (modified_model == null)
         {
             var modified_value = "Enter Here...";
@@ -54,9 +57,9 @@ public partial class TextCompare
 
     private async Task UploadFiles(IReadOnlyList<IBrowserFile> files)
     {
-        if (!files.Any() && files.Count < 2) return;
-        var text1 = await (new StreamContent(files[0].OpenReadStream(long.MaxValue)).ReadAsStringAsync());
-        var text2 = await (new StreamContent(files[1].OpenReadStream(long.MaxValue)).ReadAsStringAsync());
+        if (!files.Any() || files.Count < 2) return;
+        var text1 = await new StreamContent(files[0].OpenReadStream(long.MaxValue)).ReadAsStringAsync();
+        var text2 = await new StreamContent(files[1].OpenReadStream(long.MaxValue)).ReadAsStringAsync();
         await _diffEditor.OriginalEditor.SetValue(text1);
         await _diffEditor.ModifiedEditor.SetValue(text2);
     }

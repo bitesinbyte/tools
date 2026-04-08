@@ -1,10 +1,9 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
-namespace BitesInByte.Tools.Models.SchemaStore
+namespace BitesInByte.Tools.Models.SchemaStore;
+
+public class JsonCatalog
 {
-    public class JsonCatalog
-    {
-        [JsonPropertyName("schemas")]
-        public List<Schema> Schemas { get; set; }
-    }
+    [JsonPropertyName("schemas")]
+    public List<Schema> Schemas { get; set; } = [];
 }

@@ -1,7 +1,7 @@
 @page "/yaml-schema-validator"
 @using BitesInByte.Tools.Models.SchemaStore;
 
-<PageTitle>Easily Validate Thousands of Yaml Schemas Online with Our Best Validator Tool</PageTitle>
+<PageTitle>Easily Validate Thousands of YAML Schemas Online with Our Best Validator Tool</PageTitle>
 <HeadContent>
     <meta charset="utf-8">
     <meta name="description"
@@ -17,8 +17,8 @@
         <MudAutocomplete T="string" Label="Schema" @bind-Value="SchemaValue" HelperText="Please Select Schema"
             SearchFunc="@AutoCompleteSchema" Variant="Variant.Outlined" ProgressIndicatorColor="@(Color.Default)">
             <ProgressIndicatorInPopoverTemplate>
-                <MudList Clickable="false">
-                    <MudListItem>
+                <MudList T="string" ReadOnly="true">
+                    <MudListItem T="string">
                         Loading...
                     </MudListItem>
                 </MudList>

@@ -16,20 +16,20 @@ namespace BitesInByte.Tools.Pages.Validators;
 public partial class YamlValidator
 {
     [CascadingParameter]
-    public LayoutConfig LayoutConfig { get; set; }
+    public LayoutConfig LayoutConfig { get; set; } = null!;
     private IEnumerable<string> Schemas { get; set; } = new List<string>();
     private IEnumerable<Schema> AllSchemas { get; set; } = new List<Schema>();
-    private string SchemaValue { get; set; }
-    private Schema SelectedSchema { get; set; }
+    private string SchemaValue { get; set; } = string.Empty;
+    private Schema? SelectedSchema { get; set; }
 
     [Inject]
-    private ISnackbar Snackbar { get; set; }
+    private ISnackbar Snackbar { get; set; } = null!;
 
     [Inject]
-    private IJSRuntime JSRuntime { get; set; }
+    private IJSRuntime JSRuntime { get; set; } = null!;
 
     [Inject]
-    private HttpClient Http { get; set; }
+    private HttpClient Http { get; set; } = null!;
 
 
     private StandaloneCodeEditor _editor = null!;
@@ -76,13 +76,13 @@ public partial class YamlValidator
             var mySchema = JsonSchema.FromText(schema);
 
             var jsonNode = JsonNode.Parse(serializeObject);
-            var results = mySchema.Evaluate(jsonNode);
+            var results = mySchema.Evaluate(jsonNode?.AsValue().GetValue<JsonElement>() ?? default);
             if (!results.IsValid)
             {
-                Snackbar.Add("Invalid Yaml", Severity.Error);
+                Snackbar.Add("Invalid YAML", Severity.Error);
                 return;
             }
-            Snackbar.Add("Valid Yaml", Severity.Success);
+            Snackbar.Add("Valid YAML", Severity.Success);
         }
         catch
         {
@@ -90,7 +90,7 @@ public partial class YamlValidator
         }
     }
 
-    private async Task<IEnumerable<string>> AutoCompleteSchema(string value)
+    private async Task<IEnumerable<string>> AutoCompleteSchema(string value, CancellationToken cancellationToken)
     {
         await InitializeSchemaAsync();
         if (string.IsNullOrEmpty(value))
@@ -114,9 +114,12 @@ public partial class YamlValidator
     {
         try
         {
-            var catelog = await Http.GetFromJsonAsync<JsonCatalog>("json_catalog.json");
-            AllSchemas = catelog.Schemas;
-            Schemas = catelog.Schemas.Select(x => x.Name);
+            var catalog = await Http.GetFromJsonAsync<JsonCatalog>("json_catalog.json");
+            if (catalog is not null)
+            {
+                AllSchemas = catalog.Schemas;
+                Schemas = catalog.Schemas.Select(x => x.Name);
+            }
         }
         catch (Exception ex)
         {
