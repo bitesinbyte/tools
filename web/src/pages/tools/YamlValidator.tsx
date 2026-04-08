@@ -43,12 +43,23 @@ export default function YamlValidator() {
   const isDark = theme.palette.mode === 'dark';
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
-    fetch('https://www.schemastore.org/api/json/catalog.json')
+    fetch('https://www.schemastore.org/api/json/catalog.json', { signal: controller.signal })
       .then((r) => r.json())
-      .then((data) => setSchemas(data.schemas ?? []))
-      .catch(() => enqueueSnackbar('Failed to load schema catalog', { variant: 'error' }))
+      .then((data) => {
+        const validSchemas = (data.schemas ?? []).filter(
+          (s: SchemaEntry) => s.name && s.url,
+        );
+        setSchemas(validSchemas);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          enqueueSnackbar('Failed to load schema catalog', { variant: 'error' });
+        }
+      })
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, [enqueueSnackbar]);
 
   // Reset validation when inputs change
@@ -66,10 +77,27 @@ export default function YamlValidator() {
       return;
     }
     setValidating(true);
+    setValidationResult(null);
     try {
       const jsonObj = yaml.load(yamlValue);
       const schemaRes = await fetch(selectedSchema.url);
-      const schemaJson = await schemaRes.json();
+      if (!schemaRes.ok) {
+        setValidationResult({
+          valid: false,
+          errors: [`Failed to fetch schema: ${schemaRes.status} ${schemaRes.statusText}. The schema URL may be unavailable.`],
+        });
+        return;
+      }
+      let schemaJson;
+      try {
+        schemaJson = await schemaRes.json();
+      } catch {
+        setValidationResult({
+          valid: false,
+          errors: ['Failed to parse schema response as JSON. The schema URL may not return valid JSON.'],
+        });
+        return;
+      }
       const ajv = new Ajv({ allErrors: true, strict: false });
       const validate = ajv.compile(schemaJson);
       const valid = validate(jsonObj);
@@ -124,24 +152,29 @@ export default function YamlValidator() {
                 onChange={(_, v) => setSelectedSchema(v)}
                 loading={loading}
                 size="small"
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Select Schema"
-                    placeholder="Search schemas..."
-                    slotProps={{
-                      input: {
-                        ...params.slotProps.input,
-                        endAdornment: (
-                          <>
-                            {loading ? <CircularProgress size={20} /> : null}
-                            {params.slotProps.input.endAdornment}
-                          </>
-                        ),
-                      },
-                    }}
-                  />
-                )}
+                renderInput={(params) => {
+                  const { input: inputSlotProps, htmlInput: htmlInputSlotProps, inputLabel: inputLabelSlotProps } = params.slotProps;
+                  return (
+                    <TextField
+                      {...params}
+                      label="Select Schema"
+                      placeholder="Search schemas..."
+                      slotProps={{
+                        input: {
+                          ...inputSlotProps,
+                          endAdornment: (
+                            <>
+                              {loading ? <CircularProgress size={20} /> : null}
+                              {inputSlotProps?.endAdornment}
+                            </>
+                          ),
+                        },
+                        htmlInput: htmlInputSlotProps,
+                        inputLabel: inputLabelSlotProps,
+                      }}
+                    />
+                  );
+                }}
               />
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
