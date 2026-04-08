@@ -165,4 +165,8 @@
         <loc>https://tools.bitesinbyte.com/tiktoken</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/openapi-to-mcp</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
 </urlset>
