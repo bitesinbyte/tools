@@ -1,0 +1,46 @@
+import { Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import { lazy, Suspense } from 'react';
+import { CircularProgress, Box } from '@mui/material';
+
+const Home = lazy(() => import('./pages/Home'));
+const JsonFormatter = lazy(() => import('./pages/tools/JsonFormatter'));
+const YamlValidator = lazy(() => import('./pages/tools/YamlValidator'));
+const JwtDecoder = lazy(() => import('./pages/tools/JwtDecoder'));
+const TextCompare = lazy(() => import('./pages/tools/TextCompare'));
+const EncodeDecode = lazy(() => import('./pages/tools/EncodeDecode'));
+const CsvDelimiter = lazy(() => import('./pages/tools/CsvDelimiter'));
+const CronTester = lazy(() => import('./pages/tools/CronTester'));
+const JsonToYaml = lazy(() => import('./pages/tools/JsonToYaml'));
+const YamlToJson = lazy(() => import('./pages/tools/YamlToJson'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+
+function Loading() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <CircularProgress />
+    </Box>
+  );
+}
+
+export default function App() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/jsonFormatter" element={<JsonFormatter />} />
+          <Route path="/yaml-schema-validator" element={<YamlValidator />} />
+          <Route path="/jwt" element={<JwtDecoder />} />
+          <Route path="/textCompare" element={<TextCompare />} />
+          <Route path="/encode-decode" element={<EncodeDecode />} />
+          <Route path="/change-csv-delimiter" element={<CsvDelimiter />} />
+          <Route path="/NCrontab" element={<CronTester />} />
+          <Route path="/jsonToYaml" element={<JsonToYaml />} />
+          <Route path="/yamlToJson" element={<YamlToJson />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        </Route>
+      </Routes>
+    </Suspense>
+  );
+}

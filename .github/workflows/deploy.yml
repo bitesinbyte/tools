@@ -14,27 +14,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          dotnet-version: 10.x
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: Restore dependencies
-        run: dotnet restore src/BitesInByte.Tools.csproj
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web
 
-      - name: Publish project
-        run: dotnet publish src/BitesInByte.Tools.csproj -c Release -o release --nologo
-
-      - name: Change base-tag in index.html
-        run: sed -i 's/<base href="\/" \/>/<base href="https\:\/\/tools.bitesinbyte.com\/" \/>/g' release/wwwroot/index.html
+      - name: Build
+        run: npm run build
+        working-directory: web
 
       - name: Copy index.html to 404.html
-        run: cp release/wwwroot/index.html release/wwwroot/404.html
+        run: cp web/dist/index.html web/dist/404.html
 
       - name: Add .nojekyll file
-        run: touch release/wwwroot/.nojekyll
+        run: touch web/dist/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: release/wwwroot
+          folder: web/dist
