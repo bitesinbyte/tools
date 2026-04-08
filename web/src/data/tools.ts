@@ -38,6 +38,7 @@ import HttpIcon from '@mui/icons-material/Http';
 import LanIcon from '@mui/icons-material/Lan';
 import ViewTimelineIcon from '@mui/icons-material/ViewTimeline';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
+import ApiIcon from '@mui/icons-material/Api';
 import type { SvgIconComponent } from '@mui/icons-material';
 
 export type ToolCategory = 'All' | 'Data' | 'Text' | 'Encoding' | 'Web' | 'Dev' | 'AI';
@@ -378,6 +379,14 @@ export const tools: ToolInfo[] = ([
     href: '/tiktoken',
     icon: TextFieldsIcon,
     priority: 36,
+    category: 'AI',
+  },
+  {
+    title: 'OpenAPI to MCP Generator',
+    description: 'Generate a ready-to-run MCP server (TypeScript or Python) from an OpenAPI/Swagger spec.',
+    href: '/openapi-to-mcp',
+    icon: ApiIcon,
+    priority: 41,
     category: 'AI',
   },
 ] as const satisfies readonly ToolInfo[]).slice().sort((a, b) => b.priority - a.priority);

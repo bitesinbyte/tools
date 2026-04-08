@@ -45,6 +45,7 @@ const HttpStatusCodes = lazy(() => import('./pages/tools/HttpStatusCodes'));
 const CidrCalculator = lazy(() => import('./pages/tools/CidrCalculator'));
 const ModelContextWindow = lazy(() => import('./pages/tools/ModelContextWindow'));
 const TiktokenPlayground = lazy(() => import('./pages/tools/TiktokenPlayground'));
+const OpenApiToMcp = lazy(() => import('./pages/tools/OpenApiToMcp'));
 
 function Loading() {
   return (
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="/cidr" element={<CidrCalculator />} />
           <Route path="/context-windows" element={<ModelContextWindow />} />
           <Route path="/tiktoken" element={<TiktokenPlayground />} />
+          <Route path="/openapi-to-mcp" element={<OpenApiToMcp />} />
           {/* Legacy redirects for old URLs */}
           <Route path="/jsonFormatter" element={<JsonFormatter />} />
           <Route path="/yaml-schema-validator" element={<YamlValidator />} />
