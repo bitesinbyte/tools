@@ -89,4 +89,36 @@
         <loc>https://tools.bitesinbyte.com/json-to-typescript</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/token-counter</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/ai-pricing</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/prompt-editor</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/prompt-diff</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/api-format</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/function-schema</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/text-chunker</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
+    <url>
+        <loc>https://tools.bitesinbyte.com/embeddings</loc>
+        <lastmod>2026-04-08T00:00:00+00:00</lastmod>
+    </url>
 </urlset>

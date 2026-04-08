@@ -26,6 +26,14 @@ const QrCodeGenerator = lazy(() => import('./pages/tools/QrCodeGenerator'));
 const HtmlEntityEncoder = lazy(() => import('./pages/tools/HtmlEntityEncoder'));
 const SqlFormatter = lazy(() => import('./pages/tools/SqlFormatter'));
 const JsonToTypescript = lazy(() => import('./pages/tools/JsonToTypescript'));
+const TokenCounter = lazy(() => import('./pages/tools/TokenCounter'));
+const AiPricingCalculator = lazy(() => import('./pages/tools/AiPricingCalculator'));
+const PromptTemplateEditor = lazy(() => import('./pages/tools/PromptTemplateEditor'));
+const PromptDiff = lazy(() => import('./pages/tools/PromptDiff'));
+const ApiFormatConverter = lazy(() => import('./pages/tools/ApiFormatConverter'));
+const FunctionCallBuilder = lazy(() => import('./pages/tools/FunctionCallBuilder'));
+const TextChunker = lazy(() => import('./pages/tools/TextChunker'));
+const EmbeddingVisualizer = lazy(() => import('./pages/tools/EmbeddingVisualizer'));
 
 function Loading() {
   return (
@@ -63,6 +71,14 @@ export default function App() {
           <Route path="/html-entities" element={<HtmlEntityEncoder />} />
           <Route path="/sql-formatter" element={<SqlFormatter />} />
           <Route path="/json-to-typescript" element={<JsonToTypescript />} />
+          <Route path="/token-counter" element={<TokenCounter />} />
+          <Route path="/ai-pricing" element={<AiPricingCalculator />} />
+          <Route path="/prompt-editor" element={<PromptTemplateEditor />} />
+          <Route path="/prompt-diff" element={<PromptDiff />} />
+          <Route path="/api-format" element={<ApiFormatConverter />} />
+          <Route path="/function-schema" element={<FunctionCallBuilder />} />
+          <Route path="/text-chunker" element={<TextChunker />} />
+          <Route path="/embeddings" element={<EmbeddingVisualizer />} />
           {/* Legacy redirects for old URLs */}
           <Route path="/jsonFormatter" element={<JsonFormatter />} />
           <Route path="/yaml-schema-validator" element={<YamlValidator />} />

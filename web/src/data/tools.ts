@@ -19,6 +19,14 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import CodeIcon from '@mui/icons-material/Code';
 import StorageIcon from '@mui/icons-material/Storage';
 import TypeSpecimenIcon from '@mui/icons-material/TypeSpecimen';
+import CalculateIcon from '@mui/icons-material/Calculate';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import DifferenceIcon from '@mui/icons-material/Difference';
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import ContentCutIcon from '@mui/icons-material/ContentCut';
+import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import type { SvgIconComponent } from '@mui/icons-material';
 
 export interface ToolInfo {
@@ -176,5 +184,61 @@ export const tools: ToolInfo[] = [
     href: '/json-to-typescript',
     icon: TypeSpecimenIcon,
     priority: 1,
+  },
+  {
+    title: 'Token Counter',
+    description: 'Estimate token counts for GPT-4, Claude, Gemini, Llama, and other LLMs.',
+    href: '/token-counter',
+    icon: CalculateIcon,
+    priority: 29,
+  },
+  {
+    title: 'AI Pricing Calculator',
+    description: 'Calculate cost estimates for LLM API calls across providers and models.',
+    href: '/ai-pricing',
+    icon: AttachMoneyIcon,
+    priority: 28,
+  },
+  {
+    title: 'Prompt Template Editor',
+    description: 'Build system/user/assistant prompt templates with {{variable}} placeholders.',
+    href: '/prompt-editor',
+    icon: EditNoteIcon,
+    priority: 27,
+  },
+  {
+    title: 'Prompt Diff & Versioner',
+    description: 'Track prompt versions and compare changes with line-by-line diff.',
+    href: '/prompt-diff',
+    icon: DifferenceIcon,
+    priority: 26,
+  },
+  {
+    title: 'API Format Converter',
+    description: 'Convert chat completion payloads between OpenAI, Anthropic, Gemini, and Ollama formats.',
+    href: '/api-format',
+    icon: SyncAltIcon,
+    priority: 25,
+  },
+  {
+    title: 'Function Call Schema Builder',
+    description: 'Visually build JSON schemas for LLM function calling / tool use.',
+    href: '/function-schema',
+    icon: AccountTreeIcon,
+    priority: 24,
+  },
+  {
+    title: 'Text Chunker for RAG',
+    description: 'Split text into chunks by tokens, sentences, paragraphs, or characters for RAG pipelines.',
+    href: '/text-chunker',
+    icon: ContentCutIcon,
+    priority: 23,
+  },
+  {
+    title: 'Embedding Visualizer',
+    description: 'Compute cosine, dot product, and Euclidean similarity between text embeddings.',
+    href: '/embeddings',
+    icon: ScatterPlotIcon,
+    priority: 22,
   },
 ].sort((a, b) => b.priority - a.priority);
