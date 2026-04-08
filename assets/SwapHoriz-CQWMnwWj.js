@@ -1,0 +1,1 @@
+import{U as e}from"./Typography-C0IdHzab.js";import{D as t}from"./Grow-B2MSx6sS.js";var n=t((0,e().jsx)(`path`,{d:`M6.99 11 3 15l3.99 4v-3H14v-2H6.99zM21 9l-3.99-4v3H10v2h7.01v3z`}),`SwapHoriz`);export{n as t};
