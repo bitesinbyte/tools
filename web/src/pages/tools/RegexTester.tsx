@@ -103,7 +103,7 @@ export default function RegexTester() {
   return (
     <>
       <PageHead
-        title="Regex Tester - BitesInByte Tools"
+        title="Regex Tester - Lamplit Labs Tools"
         description="Test regex patterns with live matching, capture groups, and common presets. Free online regex tester."
       />
       <Stack spacing={2.5}>

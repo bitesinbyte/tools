@@ -227,7 +227,7 @@ export default function Base64ImageEncoder() {
   return (
     <>
       <PageHead
-        title="Base64 Image Encoder - BitesInByte Tools"
+        title="Base64 Image Encoder - Lamplit Labs Tools"
         description="Convert images to/from Base64 data URIs. Free online Base64 image encoder and decoder."
       />
       <Stack spacing={2.5}>

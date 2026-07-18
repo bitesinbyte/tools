@@ -2,175 +2,175 @@
     xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
     xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
     <url>
-        <loc>https://tools.bitesinbyte.com</loc>
+        <loc>https://tools.lamplitlabs.com</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/json-formatter</loc>
+        <loc>https://tools.lamplitlabs.com/json-formatter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/json-yaml</loc>
+        <loc>https://tools.lamplitlabs.com/json-yaml</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/yaml-validator</loc>
+        <loc>https://tools.lamplitlabs.com/yaml-validator</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/jwt</loc>
+        <loc>https://tools.lamplitlabs.com/jwt</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/text-compare</loc>
+        <loc>https://tools.lamplitlabs.com/text-compare</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/encode-decode</loc>
+        <loc>https://tools.lamplitlabs.com/encode-decode</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/csv-delimiter</loc>
+        <loc>https://tools.lamplitlabs.com/csv-delimiter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/cron</loc>
+        <loc>https://tools.lamplitlabs.com/cron</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/uuid</loc>
+        <loc>https://tools.lamplitlabs.com/uuid</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/hash</loc>
+        <loc>https://tools.lamplitlabs.com/hash</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/base64-image</loc>
+        <loc>https://tools.lamplitlabs.com/base64-image</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/color-converter</loc>
+        <loc>https://tools.lamplitlabs.com/color-converter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/regex</loc>
+        <loc>https://tools.lamplitlabs.com/regex</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/lorem-ipsum</loc>
+        <loc>https://tools.lamplitlabs.com/lorem-ipsum</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/markdown</loc>
+        <loc>https://tools.lamplitlabs.com/markdown</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/url-parser</loc>
+        <loc>https://tools.lamplitlabs.com/url-parser</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/timestamp</loc>
+        <loc>https://tools.lamplitlabs.com/timestamp</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/qr-code</loc>
+        <loc>https://tools.lamplitlabs.com/qr-code</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/html-entities</loc>
+        <loc>https://tools.lamplitlabs.com/html-entities</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/sql-formatter</loc>
+        <loc>https://tools.lamplitlabs.com/sql-formatter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/json-to-typescript</loc>
+        <loc>https://tools.lamplitlabs.com/json-to-typescript</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/token-counter</loc>
+        <loc>https://tools.lamplitlabs.com/token-counter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/ai-pricing</loc>
+        <loc>https://tools.lamplitlabs.com/ai-pricing</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/prompt-editor</loc>
+        <loc>https://tools.lamplitlabs.com/prompt-editor</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/prompt-diff</loc>
+        <loc>https://tools.lamplitlabs.com/prompt-diff</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/api-format</loc>
+        <loc>https://tools.lamplitlabs.com/api-format</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/function-schema</loc>
+        <loc>https://tools.lamplitlabs.com/function-schema</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/text-chunker</loc>
+        <loc>https://tools.lamplitlabs.com/text-chunker</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/embeddings</loc>
+        <loc>https://tools.lamplitlabs.com/embeddings</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/structured-output</loc>
+        <loc>https://tools.lamplitlabs.com/structured-output</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/css-minifier</loc>
+        <loc>https://tools.lamplitlabs.com/css-minifier</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/json-path</loc>
+        <loc>https://tools.lamplitlabs.com/json-path</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/cron-translator</loc>
+        <loc>https://tools.lamplitlabs.com/cron-translator</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/diff-patch</loc>
+        <loc>https://tools.lamplitlabs.com/diff-patch</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/base-converter</loc>
+        <loc>https://tools.lamplitlabs.com/base-converter</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/chmod</loc>
+        <loc>https://tools.lamplitlabs.com/chmod</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/http-status</loc>
+        <loc>https://tools.lamplitlabs.com/http-status</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/cidr</loc>
+        <loc>https://tools.lamplitlabs.com/cidr</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/context-windows</loc>
+        <loc>https://tools.lamplitlabs.com/context-windows</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/tiktoken</loc>
+        <loc>https://tools.lamplitlabs.com/tiktoken</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/openapi-to-mcp</loc>
+        <loc>https://tools.lamplitlabs.com/openapi-to-mcp</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
     <url>
-        <loc>https://tools.bitesinbyte.com/privacy-policy</loc>
+        <loc>https://tools.lamplitlabs.com/privacy-policy</loc>
         <lastmod>2026-04-08T00:00:00+00:00</lastmod>
     </url>
 </urlset>

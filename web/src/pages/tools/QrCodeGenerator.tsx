@@ -22,7 +22,7 @@ import { copyToClipboard } from '../../utils/file';
 import QRCode from 'qrcode';
 
 export default function QrCodeGenerator() {
-  const [input, setInput] = useState('https://tools.bitesinbyte.com');
+  const [input, setInput] = useState('https://tools.lamplitlabs.com');
   const [size, setSize] = useState(256);
   const [dataUrl, setDataUrl] = useState('');
   const [error, setError] = useState('');
@@ -88,7 +88,7 @@ export default function QrCodeGenerator() {
   return (
     <>
       <PageHead
-        title="QR Code Generator - BitesInByte Tools"
+        title="QR Code Generator - Lamplit Labs Tools"
         description="Generate QR codes from text or URLs with customizable size. Free online QR code generator."
       />
       <Stack spacing={2.5}>

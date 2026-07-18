@@ -375,7 +375,7 @@ export default function TiktokenPlayground() {
   return (
     <>
       <PageHead
-        title="Tiktoken BPE Tokenization Playground - BitesInByte Tools"
+        title="Tiktoken BPE Tokenization Playground - Lamplit Labs Tools"
         description="Visualize how text is tokenized by GPT-4, GPT-3.5, and GPT-2 BPE encodings. See token boundaries, counts, and estimated costs."
       />
       <Stack spacing={2.5}>

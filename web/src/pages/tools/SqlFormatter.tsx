@@ -87,7 +87,7 @@ export default function SqlFormatter() {
   return (
     <>
       <PageHead
-        title="SQL Formatter - BitesInByte Tools"
+        title="SQL Formatter - Lamplit Labs Tools"
         description="Format and beautify SQL queries with support for multiple dialects. Free online SQL formatter."
       />
       <Stack spacing={2.5}>

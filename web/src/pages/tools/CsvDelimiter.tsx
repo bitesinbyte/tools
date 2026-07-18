@@ -149,7 +149,7 @@ export default function CsvDelimiter() {
   return (
     <>
       <PageHead
-        title="CSV Delimiter Changer - BitesInByte Tools"
+        title="CSV Delimiter Changer - Lamplit Labs Tools"
         description="Upload a CSV file and change its delimiter to any character. Free online CSV delimiter converter."
       />
       <Stack spacing={3}>

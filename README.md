@@ -1,4 +1,4 @@
-# BitesInByte Tools
+# Lamplit Labs Tools
 
 A collection of free, browser-based developer utility tools built with React and TypeScript. All processing happens entirely in your browser — no data is sent to any server.
 

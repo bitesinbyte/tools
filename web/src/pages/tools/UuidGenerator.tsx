@@ -104,7 +104,7 @@ export default function UuidGenerator() {
   return (
     <>
       <PageHead
-        title="UUID Generator - BitesInByte Tools"
+        title="UUID Generator - Lamplit Labs Tools"
         description="Generate UUIDs v4 and v7 with bulk generation support. Free online UUID generator."
       />
       <Stack spacing={2.5}>

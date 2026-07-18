@@ -95,7 +95,7 @@ export default function TextCompare() {
   return (
     <>
       <PageHead
-        title="Text & File Compare - BitesInByte Tools"
+        title="Text & File Compare - Lamplit Labs Tools"
         description="Compare two text inputs or uploaded files side-by-side with diff highlighting."
       />
       <Stack spacing={2.5}>

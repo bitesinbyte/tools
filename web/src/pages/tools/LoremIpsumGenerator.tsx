@@ -103,7 +103,7 @@ export default function LoremIpsumGenerator() {
   return (
     <>
       <PageHead
-        title="Lorem Ipsum Generator - BitesInByte Tools"
+        title="Lorem Ipsum Generator - Lamplit Labs Tools"
         description="Generate placeholder Lorem Ipsum text by words, sentences, or paragraphs. Free online lorem ipsum generator."
       />
       <Stack spacing={2.5}>

@@ -95,7 +95,7 @@ export default function UrlParser() {
   return (
     <>
       <PageHead
-        title="URL Parser - BitesInByte Tools"
+        title="URL Parser - Lamplit Labs Tools"
         description="Parse and breakdown URL components including protocol, host, path, query params, and hash. Free online URL parser."
       />
       <Stack spacing={2.5}>

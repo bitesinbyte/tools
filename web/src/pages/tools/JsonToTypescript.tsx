@@ -198,7 +198,7 @@ export default function JsonToTypescript() {
   return (
     <>
       <PageHead
-        title="JSON to TypeScript - BitesInByte Tools"
+        title="JSON to TypeScript - Lamplit Labs Tools"
         description="Convert JSON objects into TypeScript interfaces and types. Free online JSON to TypeScript converter."
       />
       <Stack spacing={2.5}>

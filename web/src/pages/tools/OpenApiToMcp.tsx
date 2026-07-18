@@ -838,7 +838,7 @@ export default function OpenApiToMcp() {
   return (
     <>
       <PageHead
-        title="OpenAPI to MCP Server Generator - BitesInByte Tools"
+        title="OpenAPI to MCP Server Generator - Lamplit Labs Tools"
         description="Generate a complete MCP (Model Context Protocol) server from an OpenAPI or Swagger spec. Supports TypeScript and Python output."
       />
       <Stack spacing={2.5}>

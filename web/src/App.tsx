@@ -109,8 +109,8 @@ function NotFound() {
   return (
     <Stack spacing={2} sx={{ alignItems: 'center', py: { xs: 8, md: 12 }, textAlign: 'center' }}>
       <PageHead
-        title="Page Not Found - Bites In Byte"
-        description="The requested Bites In Byte page could not be found."
+        title="Page Not Found - Lamplit Labs"
+        description="The requested Lamplit Labs page could not be found."
         noIndex
       />
       <Typography component="h1" variant="h3">

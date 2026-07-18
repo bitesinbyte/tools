@@ -254,7 +254,7 @@ export default function JwtDecoder() {
   return (
     <>
       <PageHead
-        title="JWT Decoder - BitesInByte Tools"
+        title="JWT Decoder - Lamplit Labs Tools"
         description="Decode and inspect JSON Web Token headers and payloads online. Free alternative to jwt.io."
       />
       <Stack spacing={2.5}>

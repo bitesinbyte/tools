@@ -103,7 +103,7 @@ export default function TimestampConverter() {
   return (
     <>
       <PageHead
-        title="Timestamp Converter - BitesInByte Tools"
+        title="Timestamp Converter - Lamplit Labs Tools"
         description="Convert between Unix timestamps, ISO 8601, and human-readable dates. Free online timestamp converter."
       />
       <Stack spacing={2.5}>

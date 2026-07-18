@@ -248,7 +248,7 @@ export default function ColorConverter() {
   return (
     <>
       <PageHead
-        title="Color Converter - BitesInByte Tools"
+        title="Color Converter - Lamplit Labs Tools"
         description="Convert between HEX, RGB, HSL, and OKLCH color formats with a visual picker. Free online color converter."
       />
       <Stack spacing={2.5}>

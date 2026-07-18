@@ -127,7 +127,7 @@ export default function PromptTemplateEditor() {
   return (
     <>
       <PageHead
-        title="Prompt Template Editor - BitesInByte Tools"
+        title="Prompt Template Editor - Lamplit Labs Tools"
         description="Design and edit system/user/assistant prompt templates with variables. Free online prompt editor."
       />
       <Stack spacing={2.5}>

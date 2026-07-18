@@ -136,7 +136,7 @@ export default function ModelContextWindow() {
   return (
     <>
       <PageHead
-        title="Model Context Window Comparison - BitesInByte Tools"
+        title="Model Context Window Comparison - Lamplit Labs Tools"
         description="Compare context window sizes across GPT-4, Claude, Gemini, Llama, Mistral, and DeepSeek. Visual bar chart of LLM context lengths."
       />
       <Stack spacing={2.5}>

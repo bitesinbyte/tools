@@ -1,6 +1,6 @@
 {
-  "short_name": "BitesInByte Tools",
-  "name": "BitesInByte - Developer Tools",
+  "short_name": "Lamplit Labs Tools",
+  "name": "Lamplit Labs - Developer Tools",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -17,6 +17,6 @@
     }
   ],
   "display": "standalone",
-  "theme_color": "#0a1929",
-  "background_color": "#0a1929"
+  "theme_color": "#0a0a0f",
+  "background_color": "#0a0a0f"
 }

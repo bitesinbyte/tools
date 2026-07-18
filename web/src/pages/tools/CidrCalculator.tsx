@@ -336,7 +336,7 @@ export default function CidrCalculator() {
   return (
     <>
       <PageHead
-        title="CIDR / Subnet Calculator - BitesInByte Tools"
+        title="CIDR / Subnet Calculator - Lamplit Labs Tools"
         description="Calculate subnet details from CIDR notation or IP address and prefix length. Network address, broadcast, usable hosts, masks, and more."
       />
       <Stack spacing={2.5}>

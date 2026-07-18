@@ -222,7 +222,7 @@ export default function EmbeddingVisualizer() {
   return (
     <>
       <PageHead
-        title="Embedding Visualizer - BitesInByte Tools"
+        title="Embedding Visualizer - Lamplit Labs Tools"
         description="Visualize vector embeddings and compute cosine similarity, dot product, and Euclidean distance."
       />
       <Stack spacing={2.5}>

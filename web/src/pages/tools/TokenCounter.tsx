@@ -120,7 +120,7 @@ export default function TokenCounter() {
   return (
     <>
       <PageHead
-        title="AI Token Counter - BitesInByte Tools"
+        title="AI Token Counter - Lamplit Labs Tools"
         description="Count tokens for GPT-4, Claude, Gemini, Llama, and other LLMs. Estimate context window usage."
       />
       <Stack spacing={2.5}>

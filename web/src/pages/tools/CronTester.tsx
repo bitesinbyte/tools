@@ -121,7 +121,7 @@ export default function CronTester() {
   return (
     <>
       <PageHead
-        title="Cron Expression Tester - BitesInByte Tools"
+        title="Cron Expression Tester - Lamplit Labs Tools"
         description="Parse and test cron expressions with next occurrence previews. Free online cron tester."
       />
       <Stack spacing={2.5}>
