@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://tools.bitesinbyte.com/sitemap.xml
+Sitemap: https://tools.lamplitlabs.com/sitemap.xml
