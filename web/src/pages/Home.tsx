@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -11,8 +11,8 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
-import { tools, CATEGORIES, type ToolCategory } from '../data/tools';
+import { Link } from 'react-router-dom';
+import { matchesToolSearch, tools, CATEGORIES, type ToolCategory } from '../data/tools';
 import PageHead from '../components/PageHead';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -27,73 +27,34 @@ import KeyboardIcon from '@mui/icons-material/Keyboard';
 export default function Home() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<ToolCategory>('All');
-  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const filtered = useMemo(() => {
-    let list = tools;
-    if (category !== 'All') {
-      list = list.filter((t) => t.category === category);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q) ||
-          t.category.toLowerCase().includes(q),
-      );
-    }
-    return list;
+    return tools.filter(
+      (tool) => (category === 'All' || tool.category === category) && matchesToolSearch(tool, search),
+    );
   }, [search, category]);
 
-  // Reset selected index when filter changes
   useEffect(() => {
-    setSelectedIndex(-1);
-  }, [search, category]);
-
-  // Keyboard shortcuts
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      // Cmd/Ctrl+K to focus search
+    const handleShortcut = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         searchRef.current?.focus();
-        const toolsEl = document.getElementById('tools');
-        if (toolsEl) toolsEl.scrollIntoView({ behavior: 'smooth' });
-        return;
+        document.getElementById('tools')?.scrollIntoView();
       }
+    };
 
-      // Only handle arrow/enter when search is focused
-      if (document.activeElement !== searchRef.current) return;
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
-      } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < filtered.length) {
-        e.preventDefault();
-        navigate(filtered[selectedIndex].href);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setSearch('');
-        setCategory('All');
-        searchRef.current?.blur();
-      }
-    },
-    [filtered, selectedIndex, navigate],
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  const focusTool = (index: number) => {
+    const tool = filtered[index];
+    if (tool) document.getElementById(`tool-card-${tool.href.slice(1)}`)?.focus();
+  };
 
   return (
     <>
@@ -105,7 +66,7 @@ export default function Home() {
       {/* ── Hero ──────────────────────────────────────────── */}
       <Box
         sx={{
-          minHeight: 'calc(100vh - 56px)',
+          minHeight: 'calc(100svh - 56px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -221,6 +182,8 @@ export default function Home() {
                 <IconButton
                   href={item.href}
                   target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${item.label} (opens in a new tab)`}
                   sx={{
                     width: 40,
                     height: 40,
@@ -247,6 +210,7 @@ export default function Home() {
           <Box
             component="a"
             href="#tools"
+            aria-label="Browse the tool catalog"
             sx={{
               color: alpha(theme.palette.text.secondary, 0.5),
               transition: 'color 0.2s',
@@ -277,6 +241,7 @@ export default function Home() {
         {/* Section header */}
         <Box sx={{ textAlign: 'center', mb: { xs: 4, md: 6 } }}>
           <Typography
+            component="h2"
             variant="h3"
             sx={{
               fontWeight: 700,
@@ -299,10 +264,32 @@ export default function Home() {
             inputRef={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                focusTool(0);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                focusTool(filtered.length - 1);
+              } else if (event.key === 'Escape') {
+                if (search) {
+                  event.preventDefault();
+                  setSearch('');
+                } else {
+                  searchRef.current?.blur();
+                }
+              }
+            }}
             placeholder="Search tools..."
+            type="search"
             size="small"
             fullWidth
             slotProps={{
+              htmlInput: {
+                'aria-label': 'Search tools',
+                'aria-describedby': 'tool-search-help tool-results-status',
+                'aria-controls': 'tool-results',
+              },
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
@@ -312,13 +299,17 @@ export default function Home() {
                 endAdornment: (
                   <InputAdornment position="end">
                     {search ? (
-                      <IconButton size="small" onClick={() => setSearch('')}>
+                      <IconButton size="small" onClick={() => setSearch('')} aria-label="Clear tool search">
                         <ClearIcon sx={{ fontSize: 18 }} />
                       </IconButton>
                     ) : (
                       <Chip
                         icon={<KeyboardIcon sx={{ fontSize: 14 }} />}
-                        label={navigator.platform?.includes('Mac') ? '\u2318K' : 'Ctrl+K'}
+                        label={
+                          typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+                            ? '\u2318K'
+                            : 'Ctrl+K'
+                        }
                         size="small"
                         variant="outlined"
                         sx={{
@@ -346,7 +337,11 @@ export default function Home() {
           />
 
           {/* Category chips */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+          <Box
+            role="group"
+            aria-label="Filter tools by category"
+            sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}
+          >
             {CATEGORIES.map((cat) => {
               const isActive = category === cat;
               const count = cat === 'All' ? tools.length : tools.filter((t) => t.category === cat).length;
@@ -357,6 +352,7 @@ export default function Home() {
                   size="small"
                   variant={isActive ? 'filled' : 'outlined'}
                   onClick={() => setCategory(cat)}
+                  aria-pressed={isActive}
                   sx={{
                     fontWeight: isActive ? 600 : 400,
                     borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
@@ -375,19 +371,21 @@ export default function Home() {
         </Box>
 
         {/* Results count */}
-        {(search || category !== 'All') && (
-          <Typography
-            color="text.secondary"
-            sx={{ fontSize: '0.875rem', mb: 2, textAlign: 'center' }}
-          >
-            {filtered.length} tool{filtered.length !== 1 ? 's' : ''} found
-            {search && ` for "${search}"`}
-            {category !== 'All' && ` in ${category}`}
-          </Typography>
-        )}
+        <Typography
+          id="tool-results-status"
+          role="status"
+          aria-live="polite"
+          color="text.secondary"
+          sx={{ fontSize: '0.875rem', mb: 2, textAlign: 'center' }}
+        >
+          {filtered.length} tool{filtered.length !== 1 ? 's' : ''} found
+          {search.trim() && ` for "${search.trim()}"`}
+          {category !== 'All' && ` in ${category}`}
+        </Typography>
 
         {/* Keyboard hint */}
         <Typography
+          id="tool-search-help"
           color="text.secondary"
           sx={{
             fontSize: '0.75rem',
@@ -396,12 +394,12 @@ export default function Home() {
             display: { xs: 'none', md: 'block' },
           }}
         >
-          Use arrow keys to navigate, Enter to open, Escape to clear
+          Press Arrow Down from search to browse results, then Enter to open
         </Typography>
 
         {/* Card grid */}
         {filtered.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
+          <Box id="tool-results" sx={{ textAlign: 'center', py: 8 }}>
             <Typography color="text.secondary" sx={{ fontSize: '1.125rem' }}>
               No tools match your search.
             </Typography>
@@ -416,23 +414,42 @@ export default function Home() {
             />
           </Box>
         ) : (
-          <Grid container spacing={2.5}>
+          <Grid
+            id="tool-results"
+            component="ul"
+            container
+            spacing={2.5}
+            sx={{ listStyle: 'none', p: 0, m: 0 }}
+          >
             {filtered.map((tool, i) => {
               const Icon = tool.icon;
-              const isSelected = i === selectedIndex;
               return (
-                <Grid key={tool.href} size={{ xs: 12, sm: 6 }}>
+                <Grid component="li" key={tool.href} size={{ xs: 12, sm: 6 }}>
                   <Box
                     component={Link}
                     to={tool.href}
-                    id={`tool-card-${i}`}
+                    id={`tool-card-${tool.href.slice(1)}`}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        focusTool((i + 1) % filtered.length);
+                      } else if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        focusTool((i - 1 + filtered.length) % filtered.length);
+                      }
+                    }}
                     sx={{
                       display: 'block',
                       textDecoration: 'none',
                       color: 'inherit',
                       height: '100%',
+                      outline: 'none',
                       opacity: 0,
                       animation: `hero-fade-up 0.6s cubic-bezier(.16,1,.3,1) ${0.05 + i * 0.03}s forwards`,
+                      '&:focus-visible .tool-card': {
+                        borderColor: 'text.primary',
+                        boxShadow: `0 0 0 3px ${alpha(theme.palette.text.primary, 0.18)}`,
+                      },
                     }}
                   >
                     <Box
@@ -442,19 +459,12 @@ export default function Home() {
                         p: 3,
                         borderRadius: '12px',
                         border: 1,
-                        borderColor: isSelected
-                          ? (isDark ? alpha('#fafafa', 0.3) : alpha('#09090b', 0.3))
-                          : 'divider',
+                        borderColor: 'divider',
                         bgcolor: 'background.paper',
                         position: 'relative',
                         overflow: 'hidden',
                         transition: 'all 0.3s ease',
                         cursor: 'pointer',
-                        ...(isSelected && {
-                          boxShadow: isDark
-                            ? `0 0 0 1px ${alpha('#fafafa', 0.15)}, 0 8px 32px ${alpha('#000', 0.3)}`
-                            : `0 0 0 1px ${alpha('#09090b', 0.1)}, 0 8px 32px rgba(0,0,0,0.06)`,
-                        }),
                         /* Glow effect */
                         '&::before': {
                           content: '""',
@@ -464,7 +474,7 @@ export default function Home() {
                           background: isDark
                             ? `linear-gradient(135deg, ${alpha('#fafafa', 0.15)}, transparent 60%)`
                             : `linear-gradient(135deg, ${alpha('#09090b', 0.06)}, transparent 60%)`,
-                          opacity: isSelected ? 1 : 0,
+                          opacity: 0,
                           transition: 'opacity 0.4s ease',
                           zIndex: 0,
                         },

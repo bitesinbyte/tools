@@ -25,30 +25,28 @@ interface PromptVersion {
   timestamp: number;
 }
 
+const INITIAL_TIMESTAMP = Date.now();
+
 function diffLines(a: string, b: string): { type: 'same' | 'added' | 'removed'; text: string }[] {
   const aLines = a.split('\n');
   const bLines = b.split('\n');
   const result: { type: 'same' | 'added' | 'removed'; text: string }[] = [];
-  const maxLen = Math.max(aLines.length, bLines.length);
 
-  // Simple line-by-line diff
   let ai = 0, bi = 0;
   while (ai < aLines.length || bi < bLines.length) {
     if (ai < aLines.length && bi < bLines.length && aLines[ai] === bLines[bi]) {
       result.push({ type: 'same', text: aLines[ai] });
       ai++; bi++;
-    } else if (bi < bLines.length && (ai >= aLines.length || !aLines.slice(ai).includes(bLines[bi]))) {
-      result.push({ type: 'added', text: bLines[bi] });
-      bi++;
-    } else if (ai < aLines.length && (bi >= bLines.length || !bLines.slice(bi).includes(aLines[ai]))) {
+    } else if (ai < aLines.length && aLines[ai + 1] === bLines[bi]) {
       result.push({ type: 'removed', text: aLines[ai] });
       ai++;
+    } else if (bi < bLines.length && aLines[ai] === bLines[bi + 1]) {
+      result.push({ type: 'added', text: bLines[bi] });
+      bi++;
     } else {
-      // Changed line
       if (ai < aLines.length) { result.push({ type: 'removed', text: aLines[ai] }); ai++; }
       if (bi < bLines.length) { result.push({ type: 'added', text: bLines[bi] }); bi++; }
     }
-    if (result.length > maxLen * 3) break; // safety
   }
   return result;
 }
@@ -59,13 +57,13 @@ export default function PromptDiff() {
       id: crypto.randomUUID(),
       label: 'v1',
       content: 'You are a helpful assistant.\nPlease answer the user\'s question clearly and concisely.\nUse examples when appropriate.',
-      timestamp: Date.now() - 86400000,
+      timestamp: INITIAL_TIMESTAMP - 86400000,
     },
     {
       id: crypto.randomUUID(),
       label: 'v2',
       content: 'You are a helpful AI assistant specializing in software engineering.\nPlease answer the user\'s question clearly, concisely, and accurately.\nUse code examples when appropriate.\nIf you are unsure, say so.',
-      timestamp: Date.now(),
+      timestamp: INITIAL_TIMESTAMP,
     },
   ]);
   const [leftIdx, setLeftIdx] = useState(0);
@@ -81,15 +79,17 @@ export default function PromptDiff() {
   const removedCount = diffResult.filter((d) => d.type === 'removed').length;
 
   const addVersion = () => {
-    setVersions((prev) => [
-      ...prev,
-      {
+    setVersions((prev) => {
+      let versionNumber = 1;
+      const labels = new Set(prev.map((version) => version.label));
+      while (labels.has(`v${versionNumber}`)) versionNumber++;
+      return [...prev, {
         id: crypto.randomUUID(),
-        label: `v${prev.length + 1}`,
+        label: `v${versionNumber}`,
         content: '',
         timestamp: Date.now(),
-      },
-    ]);
+      }];
+    });
   };
 
   const updateVersion = (idx: number, content: string) => {
@@ -102,9 +102,15 @@ export default function PromptDiff() {
 
   const removeVersion = (idx: number) => {
     if (versions.length <= 2) return;
+    const nextLength = versions.length - 1;
+    const adjustIndex = (selected: number) => {
+      if (selected > idx) return selected - 1;
+      if (selected === idx) return Math.min(idx, nextLength - 1);
+      return Math.min(selected, nextLength - 1);
+    };
     setVersions((prev) => prev.filter((_, i) => i !== idx));
-    if (leftIdx >= versions.length - 1) setLeftIdx(0);
-    if (rightIdx >= versions.length - 1) setRightIdx(Math.min(1, versions.length - 2));
+    setLeftIdx(adjustIndex);
+    setRightIdx(adjustIndex);
   };
 
   const handleExport = () => {
@@ -160,7 +166,6 @@ export default function PromptDiff() {
               color={i === leftIdx ? 'error' : i === rightIdx ? 'success' : 'default'}
               onClick={() => {
                 if (i !== rightIdx) setLeftIdx(i);
-                else setLeftIdx(leftIdx);
               }}
               onDelete={versions.length > 2 ? () => removeVersion(i) : undefined}
               sx={{ cursor: 'pointer' }}
@@ -176,11 +181,11 @@ export default function PromptDiff() {
 
         {/* Compare selector */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-          <select value={leftIdx} onChange={(e) => setLeftIdx(Number(e.target.value))} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid', background: 'transparent', color: 'inherit' }}>
+          <select aria-label="Left prompt version" value={leftIdx} onChange={(e) => setLeftIdx(Number(e.target.value))} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid', background: 'transparent', color: 'inherit' }}>
             {versions.map((v, i) => <option key={v.id} value={i}>{v.label}</option>)}
           </select>
           <CompareArrowsIcon sx={{ color: 'text.secondary' }} />
-          <select value={rightIdx} onChange={(e) => setRightIdx(Number(e.target.value))} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid', background: 'transparent', color: 'inherit' }}>
+          <select aria-label="Right prompt version" value={rightIdx} onChange={(e) => setRightIdx(Number(e.target.value))} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid', background: 'transparent', color: 'inherit' }}>
             {versions.map((v, i) => <option key={v.id} value={i}>{v.label}</option>)}
           </select>
           <Chip label={`+${addedCount}`} size="small" color="success" variant="outlined" sx={{ fontSize: '0.6875rem' }} />
@@ -193,6 +198,7 @@ export default function PromptDiff() {
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, borderBottom: 1, borderColor: 'divider', bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.01) }}>
                 <input
+                  aria-label="Left version label"
                   value={versions[leftIdx]?.label ?? ''}
                   onChange={(e) => updateLabel(leftIdx, e.target.value)}
                   style={{ border: 'none', background: 'transparent', color: '#ef4444', fontWeight: 700, fontSize: '0.8125rem', width: 80, outline: 'none' }}
@@ -203,6 +209,7 @@ export default function PromptDiff() {
                 </Typography>
               </Box>
               <textarea
+                aria-label="Left prompt content"
                 value={left}
                 onChange={(e) => updateVersion(leftIdx, e.target.value)}
                 rows={12}
@@ -216,6 +223,7 @@ export default function PromptDiff() {
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, borderBottom: 1, borderColor: 'divider', bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.01) }}>
                 <input
+                  aria-label="Right version label"
                   value={versions[rightIdx]?.label ?? ''}
                   onChange={(e) => updateLabel(rightIdx, e.target.value)}
                   style={{ border: 'none', background: 'transparent', color: '#22c55e', fontWeight: 700, fontSize: '0.8125rem', width: 80, outline: 'none' }}
@@ -226,6 +234,7 @@ export default function PromptDiff() {
                 </Typography>
               </Box>
               <textarea
+                aria-label="Right prompt content"
                 value={right}
                 onChange={(e) => updateVersion(rightIdx, e.target.value)}
                 rows={12}

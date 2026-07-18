@@ -33,6 +33,7 @@ interface EncodingInfo {
   description: string;
   inputPricePer1k: number;  // USD per 1K tokens (input)
   outputPricePer1k: number;
+  contextWindow: number;
 }
 
 const ENCODINGS: Record<string, EncodingInfo> = {
@@ -40,15 +41,33 @@ const ENCODINGS: Record<string, EncodingInfo> = {
     name: 'GPT-4o',
     encoding: 'o200k_base',
     description: 'Used by GPT-4o and GPT-4o-mini',
-    inputPricePer1k: 0.005,
-    outputPricePer1k: 0.015,
+    inputPricePer1k: 0.0025,
+    outputPricePer1k: 0.01,
+    contextWindow: 128000,
   },
   'gpt-4': {
-    name: 'GPT-4 / GPT-3.5',
+    name: 'GPT-4',
     encoding: 'cl100k_base',
-    description: 'Used by GPT-4, GPT-4 Turbo, GPT-3.5 Turbo',
+    description: 'GPT-4 with the cl100k_base encoding',
     inputPricePer1k: 0.03,
     outputPricePer1k: 0.06,
+    contextWindow: 8192,
+  },
+  'gpt-4-turbo': {
+    name: 'GPT-4 Turbo',
+    encoding: 'cl100k_base',
+    description: 'GPT-4 Turbo with the cl100k_base encoding',
+    inputPricePer1k: 0.01,
+    outputPricePer1k: 0.03,
+    contextWindow: 128000,
+  },
+  'gpt-3.5-turbo': {
+    name: 'GPT-3.5 Turbo',
+    encoding: 'cl100k_base',
+    description: 'GPT-3.5 Turbo with the cl100k_base encoding',
+    inputPricePer1k: 0.0005,
+    outputPricePer1k: 0.0015,
+    contextWindow: 16385,
   },
   'gpt-3': {
     name: 'GPT-3 (davinci)',
@@ -56,6 +75,7 @@ const ENCODINGS: Record<string, EncodingInfo> = {
     description: 'Used by text-davinci-003, Codex',
     inputPricePer1k: 0.02,
     outputPricePer1k: 0.02,
+    contextWindow: 4097,
   },
   'gpt-2': {
     name: 'GPT-2',
@@ -63,6 +83,7 @@ const ENCODINGS: Record<string, EncodingInfo> = {
     description: 'Original GPT-2 BPE encoding',
     inputPricePer1k: 0,
     outputPricePer1k: 0,
+    contextWindow: 1024,
   },
 };
 
@@ -96,6 +117,7 @@ const COMMON_TOKENS: string[] = [
 
 // Build a set for O(1) lookup of common tokens (lowercased for matching)
 const COMMON_SET = new Set(COMMON_TOKENS.map((t) => t.toLowerCase()));
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 /**
  * Simplified BPE-like tokenizer.
@@ -118,7 +140,7 @@ function tokenize(text: string, encoding: string): string[] {
   //  - punctuation runs
   //  - whitespace runs
   const pat =
-    /(?:'s|'t|'re|'ve|'m|'ll|'d)|[A-Za-z\u00C0-\u024F]+|\d+|[^\s\w]+|\s+/g;
+    /(?:'s|'t|'re|'ve|'m|'ll|'d)|\p{L}[\p{L}\p{M}]*|\p{N}+|[^\s\p{L}\p{M}\p{N}]+|\s+/gu;
 
   const coarseTokens: string[] = [];
   let m: RegExpExecArray | null;
@@ -142,8 +164,15 @@ function tokenize(text: string, encoding: string): string[] {
       continue;
     }
 
+    if (/[^\p{ASCII}]/u.test(seg)) {
+      for (const { segment } of GRAPHEME_SEGMENTER.segment(seg)) {
+        tokens.push(segment);
+      }
+      continue;
+    }
+
     // Punctuation-only runs
-    if (/^[^\s\w]+$/.test(seg)) {
+    if (/^[^\sA-Za-z0-9_]+$/.test(seg)) {
       // Try known multi-char operators
       let i = 0;
       while (i < seg.length) {
@@ -283,7 +312,7 @@ export default function TiktokenPlayground() {
 
   const stats = useMemo(() => {
     const tokenCount = tokens.length;
-    const charCount = text.length;
+    const charCount = [...GRAPHEME_SEGMENTER.segment(text)].length;
     const avgCharsPerToken = tokenCount > 0 ? (charCount / tokenCount).toFixed(2) : '0';
     const inputCost =
       encodingInfo.inputPricePer1k > 0
@@ -293,7 +322,9 @@ export default function TiktokenPlayground() {
       encodingInfo.outputPricePer1k > 0
         ? ((tokenCount / 1000) * encodingInfo.outputPricePer1k).toFixed(6)
         : 'N/A';
-    return { tokenCount, charCount, avgCharsPerToken, inputCost, outputCost };
+    const contextUsed = (tokenCount / encodingInfo.contextWindow) * 100;
+    const remaining = Math.max(0, encodingInfo.contextWindow - tokenCount);
+    return { tokenCount, charCount, avgCharsPerToken, inputCost, outputCost, contextUsed, remaining };
   }, [tokens, text, encodingInfo]);
 
   // -- handlers --
@@ -312,12 +343,16 @@ export default function TiktokenPlayground() {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const t = await readFileAsText(file);
-      setText(t);
-      setFileName(file.name);
+      try {
+        const t = await readFileAsText(file);
+        setText(t);
+        setFileName(file.name);
+      } catch {
+        enqueueSnackbar('Failed to read file', { variant: 'error' });
+      }
       e.target.value = '';
     },
-    [],
+    [enqueueSnackbar],
   );
 
   const handleClear = useCallback(() => {
@@ -333,6 +368,8 @@ export default function TiktokenPlayground() {
     { label: 'Avg Chars / Token', value: stats.avgCharsPerToken },
     { label: 'Input Cost (USD)', value: stats.inputCost === 'N/A' ? 'N/A' : `$${stats.inputCost}` },
     { label: 'Output Cost (USD)', value: stats.outputCost === 'N/A' ? 'N/A' : `$${stats.outputCost}` },
+    { label: 'Context Used', value: `${stats.contextUsed.toFixed(2)}%` },
+    { label: 'Tokens Remaining', value: stats.remaining.toLocaleString() },
   ];
 
   return (
@@ -348,8 +385,8 @@ export default function TiktokenPlayground() {
             Tiktoken / BPE Tokenization Playground
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Visualize token boundaries for different OpenAI encodings. Uses a simplified BPE-like
-            tokenizer to approximate real tokenization behaviour.
+            Visualize approximate token boundaries for different OpenAI encodings. This simplified
+            tokenizer is educational and does not produce official token IDs.
           </Typography>
         </Box>
 
@@ -454,7 +491,7 @@ export default function TiktokenPlayground() {
         {/* Stats grid */}
         <Grid container spacing={1.5}>
           {statItems.map((item) => (
-            <Grid key={item.label} size={{ xs: 6, sm: 4, md: 2.4 }}>
+            <Grid key={item.label} size={{ xs: 6, sm: 4, md: 12 / statItems.length }}>
               <Box
                 sx={{
                   p: 1.5,
@@ -486,6 +523,14 @@ export default function TiktokenPlayground() {
             </Grid>
           ))}
         </Grid>
+        {stats.tokenCount > encodingInfo.contextWindow && (
+          <Chip
+            label={`Estimated count exceeds the ${encodingInfo.contextWindow.toLocaleString()} token context window`}
+            color="error"
+            variant="outlined"
+            sx={{ alignSelf: 'flex-start' }}
+          />
+        )}
 
         {/* Main content: input + token visualization + token list */}
         <Grid container spacing={2}>
@@ -532,6 +577,7 @@ export default function TiktokenPlayground() {
                 </Tooltip>
               </Box>
               <textarea
+                aria-label="Text to tokenize"
                 value={text}
                 onChange={(e) => {
                   setText(e.target.value);

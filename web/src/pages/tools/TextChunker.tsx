@@ -22,6 +22,12 @@ import { useSnackbar } from 'notistack';
 import { copyToClipboard, readFileAsText, downloadFile } from '../../utils/file';
 
 type ChunkStrategy = 'tokens' | 'sentences' | 'paragraphs' | 'characters';
+const SENTENCE_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'sentence' });
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+function countCharacters(text: string): number {
+  return [...GRAPHEME_SEGMENTER.segment(text)].length;
+}
 
 function estimateTokenCount(text: string): number {
   if (!text) return 0;
@@ -34,7 +40,7 @@ function chunkByTokens(text: string, maxTokens: number, overlap: number): string
   const chunks: string[] = [];
   let i = 0;
   const wordsPerChunk = Math.max(1, Math.round(maxTokens / 1.3));
-  const overlapWords = Math.round(overlap / 1.3);
+  const overlapWords = Math.min(wordsPerChunk - 1, Math.max(0, Math.round(overlap / 1.3)));
 
   while (i < words.length) {
     const chunk = words.slice(i, i + wordsPerChunk).join(' ');
@@ -46,13 +52,16 @@ function chunkByTokens(text: string, maxTokens: number, overlap: number): string
 }
 
 function chunkBySentences(text: string, maxSentences: number, overlap: number): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+\s*/g) || [text];
+  const sentences = [...SENTENCE_SEGMENTER.segment(text)]
+    .map(({ segment }) => segment)
+    .filter((sentence) => sentence.trim());
   const chunks: string[] = [];
   let i = 0;
+  const safeOverlap = Math.min(maxSentences - 1, Math.max(0, overlap));
   while (i < sentences.length) {
     const chunk = sentences.slice(i, i + maxSentences).join('');
     chunks.push(chunk.trim());
-    i += maxSentences - overlap;
+    i += maxSentences - safeOverlap;
     if (i >= sentences.length) break;
   }
   return chunks;
@@ -62,22 +71,26 @@ function chunkByParagraphs(text: string, maxParagraphs: number, overlap: number)
   const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim());
   const chunks: string[] = [];
   let i = 0;
+  const safeOverlap = Math.min(maxParagraphs - 1, Math.max(0, overlap));
   while (i < paragraphs.length) {
     const chunk = paragraphs.slice(i, i + maxParagraphs).join('\n\n');
     chunks.push(chunk.trim());
-    i += maxParagraphs - overlap;
+    i += maxParagraphs - safeOverlap;
     if (i >= paragraphs.length) break;
   }
   return chunks;
 }
 
 function chunkByCharacters(text: string, maxChars: number, overlap: number): string[] {
+  const characters = [...GRAPHEME_SEGMENTER.segment(text)]
+    .map(({ segment }) => segment);
   const chunks: string[] = [];
   let i = 0;
-  while (i < text.length) {
-    chunks.push(text.slice(i, i + maxChars));
-    i += maxChars - overlap;
-    if (i >= text.length) break;
+  const safeOverlap = Math.min(maxChars - 1, Math.max(0, overlap));
+  while (i < characters.length) {
+    chunks.push(characters.slice(i, i + maxChars).join(''));
+    i += maxChars - safeOverlap;
+    if (i >= characters.length) break;
   }
   return chunks;
 }
@@ -95,16 +108,27 @@ export default function TextChunker() {
   const sizeLabel = strategy === 'tokens' ? 'tokens' : strategy === 'sentences' ? 'sentences' : strategy === 'paragraphs' ? 'paragraphs' : 'characters';
   const maxSize = strategy === 'tokens' ? 4000 : strategy === 'sentences' ? 50 : strategy === 'paragraphs' ? 20 : 10000;
   const maxOverlap = strategy === 'tokens' ? 500 : strategy === 'sentences' ? 10 : strategy === 'paragraphs' ? 5 : 2000;
+  const effectiveOverlap = Math.min(overlap, Math.max(0, chunkSize - 1));
 
   const chunks = useMemo(() => {
     if (!text.trim()) return [];
     switch (strategy) {
-      case 'tokens': return chunkByTokens(text, chunkSize, overlap);
-      case 'sentences': return chunkBySentences(text, chunkSize, overlap);
-      case 'paragraphs': return chunkByParagraphs(text, chunkSize, overlap);
-      case 'characters': return chunkByCharacters(text, chunkSize, overlap);
+      case 'tokens': return chunkByTokens(text, chunkSize, effectiveOverlap);
+      case 'sentences': return chunkBySentences(text, chunkSize, effectiveOverlap);
+      case 'paragraphs': return chunkByParagraphs(text, chunkSize, effectiveOverlap);
+      case 'characters': return chunkByCharacters(text, chunkSize, effectiveOverlap);
     }
-  }, [text, strategy, chunkSize, overlap]);
+  }, [text, strategy, chunkSize, effectiveOverlap]);
+
+  const handleStrategyChange = (nextStrategy: ChunkStrategy | null) => {
+    if (!nextStrategy) return;
+    const nextMaxSize = nextStrategy === 'tokens' ? 4000 : nextStrategy === 'sentences' ? 50 : nextStrategy === 'paragraphs' ? 20 : 10000;
+    const nextMaxOverlap = nextStrategy === 'tokens' ? 500 : nextStrategy === 'sentences' ? 10 : nextStrategy === 'paragraphs' ? 5 : 2000;
+    const nextSize = Math.min(chunkSize, nextMaxSize);
+    setStrategy(nextStrategy);
+    setChunkSize(nextSize);
+    setOverlap(Math.min(overlap, nextMaxOverlap, Math.max(0, nextSize - 1)));
+  };
 
   const handlePaste = async () => {
     try {
@@ -119,9 +143,13 @@ export default function TextChunker() {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const t = await readFileAsText(file);
-    setText(t);
-    setFileName(file.name);
+    try {
+      const t = await readFileAsText(file);
+      setText(t);
+      setFileName(file.name);
+    } catch {
+      enqueueSnackbar('Failed to read file', { variant: 'error' });
+    }
     e.target.value = '';
   };
 
@@ -130,7 +158,7 @@ export default function TextChunker() {
       chunk_index: i,
       text: c,
       estimated_tokens: estimateTokenCount(c),
-      character_count: c.length,
+      character_count: countCharacters(c),
     }));
     downloadFile('chunks.json', JSON.stringify(data, null, 2), 'application/json');
   };
@@ -164,7 +192,7 @@ export default function TextChunker() {
               <ToggleButtonGroup
                 value={strategy}
                 exclusive
-                onChange={(_, v) => v && setStrategy(v)}
+                onChange={(_, v: ChunkStrategy | null) => handleStrategyChange(v)}
                 size="small"
                 fullWidth
               >
@@ -178,13 +206,28 @@ export default function TextChunker() {
               <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>
                 Chunk size: {chunkSize} {sizeLabel}
               </Typography>
-              <Slider value={chunkSize} onChange={(_, v) => setChunkSize(v as number)} min={1} max={maxSize} step={1} />
+              <Slider
+                value={chunkSize}
+                onChange={(_, v) => setChunkSize(v as number)}
+                min={1}
+                max={maxSize}
+                step={1}
+                aria-label="Chunk size"
+              />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>
-                Overlap: {overlap} {sizeLabel}
+                Overlap: {effectiveOverlap} {sizeLabel}
               </Typography>
-              <Slider value={overlap} onChange={(_, v) => setOverlap(v as number)} min={0} max={maxOverlap} step={1} />
+              <Slider
+                value={effectiveOverlap}
+                onChange={(_, v) => setOverlap(v as number)}
+                min={0}
+                max={Math.max(1, Math.min(maxOverlap, Math.max(0, chunkSize - 1)))}
+                step={1}
+                aria-label="Chunk overlap"
+                disabled={chunkSize <= 1}
+              />
             </Grid>
             <Grid size={{ xs: 12, md: 2 }}>
               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
@@ -207,7 +250,7 @@ export default function TextChunker() {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Chip label={`${chunks.length} chunks`} color="primary" variant="outlined" size="small" />
             <Chip label={`~${estimateTokenCount(text).toLocaleString()} total tokens`} variant="outlined" size="small" />
-            <Chip label={`${text.length.toLocaleString()} characters`} variant="outlined" size="small" />
+            <Chip label={`${countCharacters(text).toLocaleString()} characters`} variant="outlined" size="small" />
             {fileName && <Chip label={fileName} variant="outlined" size="small" />}
             {chunks.length > 0 && (
               <Chip label="Export JSON" size="small" variant="outlined" onClick={handleExport} sx={{ cursor: 'pointer' }} />
@@ -223,6 +266,7 @@ export default function TextChunker() {
                 <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem' }}>Source Text</Typography>
               </Box>
               <textarea
+                aria-label="Source text to chunk"
                 value={text}
                 onChange={(e) => { setText(e.target.value); setFileName(''); }}
                 placeholder="Paste your document, article, or text here..."
@@ -257,7 +301,7 @@ export default function TextChunker() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <Chip label={`#${i + 1}`} size="small" sx={{ fontSize: '0.625rem', height: 20 }} />
                       <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary' }}>
-                        ~{estimateTokenCount(chunk)} tokens | {chunk.length} chars
+                        ~{estimateTokenCount(chunk)} tokens | {countCharacters(chunk)} chars
                       </Typography>
                       <Box sx={{ flexGrow: 1 }} />
                       <Tooltip title="Copy chunk">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -17,6 +17,9 @@ import {
   useMediaQuery,
   useTheme,
   alpha,
+  CircularProgress,
+  InputAdornment,
+  TextField,
 } from '@mui/material';
 import HomeIcon from '@mui/icons-material/Home';
 import ArticleIcon from '@mui/icons-material/Article';
@@ -25,21 +28,17 @@ import GitHubIcon from '@mui/icons-material/GitHub';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import SearchIcon from '@mui/icons-material/Search';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useThemeMode } from '../theme/ThemeProvider';
-import { tools } from '../data/tools';
+import { matchesToolSearch, tools } from '../data/tools';
 import Logo from './Logo';
 
 /* ── Desktop nav links (shown as text in the header) ─── */
 const desktopNavLinks = [
   { label: 'Tools', to: '/' },
   { label: 'Blog', href: 'https://blogs.bitesinbyte.com' },
-];
-
-/* ── Mobile drawer links ─────────────────────────────── */
-const mobileNavLinks = [
-  { label: 'Home', to: '/', icon: <HomeIcon fontSize="small" /> },
-  ...tools.map((t) => ({ label: t.title, to: t.href, icon: undefined })),
 ];
 
 /* ── External social links ───────────────────────────── */
@@ -49,23 +48,72 @@ const socialLinks = [
   { label: 'GitHub', href: 'https://github.com/bitesinbyte', icon: <GitHubIcon sx={{ fontSize: 16 }} /> },
 ];
 
+function PageLoading() {
+  return (
+    <Box
+      role="status"
+      aria-live="polite"
+      aria-label="Loading page"
+      sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}
+    >
+      <CircularProgress />
+    </Box>
+  );
+}
+
 export default function Layout() {
   const { mode, toggleTheme } = useThemeMode();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSearch, setDrawerSearch] = useState('');
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isHome = location.pathname === '/';
+  const mainRef = useRef<HTMLElement>(null);
+  const previousPath = useRef(location.pathname);
+  const drawerTools = useMemo(
+    () => tools.filter((tool) => matchesToolSearch(tool, drawerSearch)),
+    [drawerSearch],
+  );
 
-  // Scroll to top on route change
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setDrawerSearch('');
+  };
+
   useEffect(() => {
     window.scrollTo(0, 0);
+    if (previousPath.current === location.pathname) return;
+    previousPath.current = location.pathname;
+    const frame = window.requestAnimationFrame(() => {
+      mainRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [location.pathname]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <MuiLink
+        href="#main-content"
+        sx={{
+          position: 'fixed',
+          top: 8,
+          left: 8,
+          zIndex: (muiTheme) => muiTheme.zIndex.modal + 1,
+          px: 2,
+          py: 1,
+          borderRadius: 1,
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          transform: 'translateY(-150%)',
+          '&:focus': { transform: 'translateY(0)' },
+        }}
+      >
+        Skip to main content
+      </MuiLink>
       {/* ── Nav ─────────────────────────────────────────── */}
       <AppBar
+        component="header"
         position="fixed"
         elevation={0}
         sx={{
@@ -117,7 +165,11 @@ export default function Layout() {
 
             {/* Desktop text nav links with underline animation */}
             {!isMobile && (
-              <Box component="nav" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
+              <Box
+                component="nav"
+                aria-label="Primary navigation"
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}
+              >
                 {desktopNavLinks.map((item) => {
                   const isActive = item.to ? location.pathname === item.to : false;
                   const commonSx = {
@@ -152,13 +204,26 @@ export default function Layout() {
 
                   if (item.href) {
                     return (
-                      <MuiLink key={item.label} href={item.href} target="_blank" sx={commonSx}>
+                      <MuiLink
+                        key={item.label}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${item.label} (opens in a new tab)`}
+                        sx={commonSx}
+                      >
                         {item.label}
                       </MuiLink>
                     );
                   }
                   return (
-                    <MuiLink key={item.label} component={Link} to={item.to!} sx={commonSx}>
+                    <MuiLink
+                      key={item.label}
+                      component={Link}
+                      to={item.to!}
+                      aria-current={isActive ? 'page' : undefined}
+                      sx={commonSx}
+                    >
                       {item.label}
                     </MuiLink>
                   );
@@ -172,6 +237,7 @@ export default function Layout() {
                 <IconButton
                   onClick={toggleTheme}
                   size="small"
+                  aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}
                   sx={{
                     width: 40,
                     height: 40,
@@ -190,6 +256,8 @@ export default function Layout() {
                 onClick={() => setDrawerOpen(true)}
                 size="small"
                 aria-label="Open menu"
+                aria-controls="mobile-tools-drawer"
+                aria-expanded={drawerOpen}
                 sx={{ color: 'text.secondary', ml: 0.5 }}
               >
                 <MenuIcon />
@@ -203,23 +271,29 @@ export default function Layout() {
       <Drawer
         anchor="right"
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
+        aria-label="Tools navigation"
         slotProps={{
           paper: {
+            id: 'mobile-tools-drawer',
             sx: {
-              width: 280,
+              width: { xs: 'min(88vw, 360px)', sm: 360 },
               bgcolor: 'background.default',
               borderLeft: 1,
               borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
             },
           },
         }}
       >
-        <Box sx={{ pt: 2, pb: 1, px: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 1.5, pb: 1, px: 2 }}>
           <Typography
+            id="mobile-tools-heading"
             variant="subtitle2"
             color="text.secondary"
             sx={{
+              flex: 1,
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
@@ -228,29 +302,71 @@ export default function Layout() {
           >
             Tools
           </Typography>
+          <IconButton onClick={closeDrawer} aria-label="Close menu" size="small">
+            <CloseIcon />
+          </IconButton>
         </Box>
-        <List dense>
-          {mobileNavLinks.map((item) => (
-            <ListItem key={item.to} disablePadding>
+        <Box sx={{ px: 2, pb: 1.5 }}>
+          <TextField
+            value={drawerSearch}
+            onChange={(event) => setDrawerSearch(event.target.value)}
+            label="Search tools"
+            size="small"
+            fullWidth
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Box>
+        <List dense aria-labelledby="mobile-tools-heading" sx={{ flex: 1, overflowY: 'auto', py: 0.5 }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              component={Link}
+              to="/"
+              selected={location.pathname === '/'}
+              aria-current={location.pathname === '/' ? 'page' : undefined}
+              onClick={closeDrawer}
+              sx={{ borderRadius: 1, mx: 1, '&.Mui-selected': { bgcolor: 'action.selected' } }}
+            >
+              <ListItemIcon sx={{ minWidth: 32 }}>
+                <HomeIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="All tools" slotProps={{ primary: { sx: { fontSize: '0.875rem' } } }} />
+            </ListItemButton>
+          </ListItem>
+          {drawerTools.map((tool) => (
+            <ListItem key={tool.href} disablePadding>
               <ListItemButton
                 component={Link}
-                to={item.to}
-                selected={location.pathname === item.to}
-                onClick={() => setDrawerOpen(false)}
+                to={tool.href}
+                selected={location.pathname === tool.href}
+                aria-current={location.pathname === tool.href ? 'page' : undefined}
+                onClick={closeDrawer}
                 sx={{
                   borderRadius: 1,
                   mx: 1,
                   '&.Mui-selected': { bgcolor: 'action.selected' },
                 }}
               >
-                {item.icon && <ListItemIcon sx={{ minWidth: 32 }}>{item.icon}</ListItemIcon>}
                 <ListItemText
-                  primary={item.label}
+                  primary={tool.title}
+                  secondary={tool.category}
                   slotProps={{ primary: { sx: { fontSize: '0.875rem' } } }}
                 />
               </ListItemButton>
             </ListItem>
           ))}
+          {drawerTools.length === 0 && (
+            <Typography color="text.secondary" sx={{ px: 3, py: 2, fontSize: '0.875rem' }}>
+              No tools match “{drawerSearch.trim()}”.
+            </Typography>
+          )}
         </List>
         <Box sx={{ mt: 'auto', p: 2, borderTop: 1, borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -259,6 +375,8 @@ export default function Layout() {
                 key={item.href}
                 href={item.href}
                 target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${item.label} (opens in a new tab)`}
                 size="small"
                 sx={{
                   border: 1,
@@ -277,7 +395,13 @@ export default function Layout() {
       </Drawer>
 
       {/* ── Content ────────────────────────────────────── */}
-      <Box sx={{ pt: '56px', flex: 1 }}>
+      <Box
+        component="main"
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        sx={{ pt: '56px', flex: 1, outline: 'none' }}
+      >
         <Container
           maxWidth="md"
           sx={{
@@ -285,7 +409,9 @@ export default function Layout() {
             px: { xs: 2, sm: 3 },
           }}
         >
-          <Outlet />
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </Container>
       </Box>
 
@@ -296,11 +422,11 @@ export default function Layout() {
             sx={{
               display: 'grid',
               gap: { xs: 4, sm: 4 },
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr 1fr' },
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1.2fr 1fr 1fr 1fr' },
             }}
           >
             {/* Col 1: Brand */}
-            <Box sx={{ gridColumn: { sm: 'span 2', lg: 'span 1' } }}>
+            <Box sx={{ gridColumn: { sm: 'span 2', md: 'span 1' } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <Logo sx={{ fontSize: 24, color: 'text.primary' }} />
                 <Typography sx={{ fontWeight: 600, fontSize: '1rem', letterSpacing: '-0.025em' }}>
@@ -369,6 +495,8 @@ export default function Layout() {
                       <MuiLink
                         href={item.href}
                         target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${item.label} (opens in a new tab)`}
                         underline="none"
                         sx={{
                           fontSize: '0.875rem',
@@ -396,6 +524,8 @@ export default function Layout() {
                     key={item.href}
                     href={item.href}
                     target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${item.label} (opens in a new tab)`}
                     size="small"
                     sx={{
                       border: 1,

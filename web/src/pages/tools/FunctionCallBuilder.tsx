@@ -19,6 +19,7 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
 import { copyToClipboard, downloadFile } from '../../utils/file';
@@ -54,26 +55,38 @@ function buildSchema(func: FunctionDef): object {
   const required: string[] = [];
 
   for (const param of func.parameters) {
+    const name = param.name.trim();
+    if (!name || properties[name]) continue;
     const prop: Record<string, unknown> = {
       type: param.type,
-      description: param.description,
     };
-    if (param.enumValues.trim()) {
-      prop.enum = param.enumValues.split(',').map((v) => v.trim()).filter(Boolean);
+    if (param.description.trim()) prop.description = param.description.trim();
+    if (param.enumValues.trim() && ['string', 'number', 'integer', 'boolean'].includes(param.type)) {
+      const rawValues = param.enumValues.split(',').map((v) => v.trim()).filter(Boolean);
+      if (param.type === 'number' || param.type === 'integer') {
+        prop.enum = rawValues.map(Number).filter((value) => Number.isFinite(value) && (param.type !== 'integer' || Number.isInteger(value)));
+      } else if (param.type === 'boolean') {
+        prop.enum = rawValues.filter((value) => value === 'true' || value === 'false').map((value) => value === 'true');
+      } else {
+        prop.enum = rawValues;
+      }
     }
-    properties[param.name] = prop;
-    if (param.required) required.push(param.name);
+    if (param.type === 'array') prop.items = {};
+    if (param.type === 'object') prop.additionalProperties = true;
+    properties[name] = prop;
+    if (param.required) required.push(name);
   }
 
   return {
     type: 'function',
     function: {
-      name: func.name,
-      description: func.description,
+      name: func.name.trim(),
+      description: func.description.trim(),
       parameters: {
         type: 'object',
         properties,
         required,
+        additionalProperties: false,
       },
     },
   };
@@ -86,6 +99,27 @@ export default function FunctionCallBuilder() {
   const isDark = theme.palette.mode === 'dark';
 
   const schema = useMemo(() => JSON.stringify(buildSchema(func), null, 2), [func]);
+  const errors = useMemo(() => {
+    const result: string[] = [];
+    if (!/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(func.name.trim())) {
+      result.push('Function name must be 1–64 characters and start with a letter or underscore.');
+    }
+    const names = func.parameters.map((param) => param.name.trim());
+    if (names.some((name) => !name)) result.push('Every parameter needs a name.');
+    if (new Set(names).size !== names.length) result.push('Parameter names must be unique.');
+    for (const param of func.parameters) {
+      if (!param.enumValues.trim()) continue;
+      const values = param.enumValues.split(',').map((value) => value.trim()).filter(Boolean);
+      if (['array', 'object'].includes(param.type)) result.push(`Enum is not supported for ${param.type} parameter "${param.name}".`);
+      if ((param.type === 'number' || param.type === 'integer') && values.some((value) => !Number.isFinite(Number(value)) || (param.type === 'integer' && !Number.isInteger(Number(value))))) {
+        result.push(`Enum values for "${param.name}" must be valid ${param.type}s.`);
+      }
+      if (param.type === 'boolean' && values.some((value) => value !== 'true' && value !== 'false')) {
+        result.push(`Enum values for "${param.name}" must be true or false.`);
+      }
+    }
+    return result;
+  }, [func]);
 
   const updateParam = (index: number, field: keyof Parameter, value: string | boolean) => {
     setFunc((prev) => ({
@@ -106,6 +140,7 @@ export default function FunctionCallBuilder() {
   };
 
   const handleCopy = async () => {
+    if (errors.length) return;
     const ok = await copyToClipboard(schema);
     enqueueSnackbar(ok ? 'Copied schema' : 'Failed', { variant: ok ? 'success' : 'error' });
   };
@@ -135,6 +170,7 @@ export default function FunctionCallBuilder() {
                 value={func.name}
                 onChange={(e) => setFunc((prev) => ({ ...prev, name: e.target.value }))}
                 slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.875rem' } } }}
+                error={!/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(func.name.trim())}
               />
               <TextField
                 label="Description"
@@ -172,6 +208,7 @@ export default function FunctionCallBuilder() {
                       onChange={(e) => updateParam(i, 'name', e.target.value)}
                       sx={{ flex: 1 }}
                       slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.8125rem' } } }}
+                      error={!param.name.trim() || func.parameters.some((other, j) => j !== i && other.name.trim() === param.name.trim())}
                     />
                     <FormControl size="small" sx={{ minWidth: 110 }}>
                       <InputLabel>Type</InputLabel>
@@ -209,6 +246,7 @@ export default function FunctionCallBuilder() {
                     fullWidth
                     placeholder="e.g. celsius, fahrenheit"
                     slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.8125rem' } } }}
+                    disabled={param.type === 'array' || param.type === 'object'}
                   />
                 </Box>
               ))}
@@ -217,22 +255,31 @@ export default function FunctionCallBuilder() {
 
           {/* Schema output */}
           <Grid size={{ xs: 12, md: 6 }}>
+            {errors.length > 0 && (
+              <Chip
+                color="error"
+                variant="outlined"
+                label={errors[0]}
+                sx={{ mb: 1, maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal' } }}
+              />
+            )}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
                 Generated Schema
               </Typography>
               <Tooltip title="Copy">
-                <IconButton size="small" onClick={handleCopy} sx={{ color: 'text.secondary' }}>
+                <IconButton size="small" onClick={handleCopy} disabled={errors.length > 0} sx={{ color: 'text.secondary' }}>
                   <ContentCopyIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Download">
                 <IconButton
                   size="small"
-                  onClick={() => downloadFile(`${func.name || 'function'}-schema.json`, schema, 'application/json')}
+                  onClick={() => downloadFile(`${func.name.trim() || 'function'}-schema.json`, schema, 'application/json')}
+                  disabled={errors.length > 0}
                   sx={{ color: 'text.secondary' }}
                 >
-                  <ContentCopyIcon sx={{ fontSize: 16 }} />
+                  <DownloadIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
             </Box>

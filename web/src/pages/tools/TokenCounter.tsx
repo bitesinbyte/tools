@@ -49,17 +49,20 @@ const MODELS: Record<string, ModelInfo> = {
 // More accurate estimation: count BPE-like tokens
 function estimateTokens(text: string, tokensPerChar: number): number {
   if (!text) return 0;
-  // Word-based estimation with adjustments
-  const words = text.split(/\s+/).filter(Boolean);
-  const wordTokens = words.reduce((sum, word) => {
+  const segments = text.match(/[\p{L}\p{M}\p{N}_]+|[^\s]/gu) ?? [];
+  const wordTokens = segments.reduce((sum, segment) => {
+    if (!/^[\p{L}\p{M}\p{N}_]+$/u.test(segment)) {
+      return sum + Math.max(1, Math.ceil(new TextEncoder().encode(segment).length / 3));
+    }
+    if (/[^\p{ASCII}]/u.test(segment)) {
+      return sum + Math.max(1, Math.ceil(new TextEncoder().encode(segment).length / 3));
+    }
     // Short common words ~1 token, longer words get split
-    if (word.length <= 4) return sum + 1;
-    if (word.length <= 8) return sum + 1.3;
-    return sum + Math.ceil(word.length * tokensPerChar);
+    if (segment.length <= 4) return sum + 1;
+    if (segment.length <= 8) return sum + 1.3;
+    return sum + Math.ceil(segment.length * tokensPerChar);
   }, 0);
-  // Account for whitespace tokens and punctuation
-  const punctuation = (text.match(/[^\w\s]/g) || []).length;
-  return Math.max(1, Math.round(wordTokens + punctuation * 0.5));
+  return Math.max(1, Math.round(wordTokens));
 }
 
 export default function TokenCounter() {
@@ -95,9 +98,13 @@ export default function TokenCounter() {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const t = await readFileAsText(file);
-    setText(t);
-    setFileName(file.name);
+    try {
+      const t = await readFileAsText(file);
+      setText(t);
+      setFileName(file.name);
+    } catch {
+      enqueueSnackbar('Failed to read file', { variant: 'error' });
+    }
     e.target.value = '';
   };
 
@@ -274,6 +281,7 @@ export default function TokenCounter() {
             </Tooltip>
           </Box>
           <textarea
+            aria-label="Text to estimate token count"
             value={text}
             onChange={(e) => { setText(e.target.value); setFileName(''); }}
             placeholder="Paste or type your prompt, document, or code here..."

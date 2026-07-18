@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Typography,
   Stack,
@@ -47,8 +47,8 @@ function encodeHtmlEntities(text: string): string {
   for (const char of text) {
     if (HTML_ENTITIES[char]) {
       result += HTML_ENTITIES[char];
-    } else if (char.charCodeAt(0) > 127) {
-      result += `&#${char.charCodeAt(0)};`;
+    } else if (char.codePointAt(0)! > 127) {
+      result += `&#${char.codePointAt(0)};`;
     } else {
       result += char;
     }
@@ -58,37 +58,29 @@ function encodeHtmlEntities(text: string): string {
 
 function decodeHtmlEntities(text: string): string {
   const el = document.createElement('textarea');
-  el.innerHTML = text;
+  el.innerHTML = text.replace(/</g, '&lt;');
   return el.value;
 }
 
 export default function HtmlEntityEncoder() {
   const [mode, setMode] = useState<Mode>('encode');
   const [input, setInput] = useState('');
-  const [output, setOutput] = useState('');
-  const [error, setError] = useState('');
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const convert = useCallback((text: string, currentMode: Mode) => {
-    if (!text.trim()) {
-      setOutput('');
-      setError('');
-      return;
-    }
+  const conversion = useMemo(() => {
+    if (input.length === 0) return { output: '', error: '' };
     try {
-      setOutput(currentMode === 'encode' ? encodeHtmlEntities(text) : decodeHtmlEntities(text));
-      setError('');
+      return {
+        output: mode === 'encode' ? encodeHtmlEntities(input) : decodeHtmlEntities(input),
+        error: '',
+      };
     } catch (e) {
-      setOutput('');
-      setError((e as Error).message);
+      return { output: '', error: (e as Error).message };
     }
-  }, []);
-
-  useEffect(() => {
-    convert(input, mode);
-  }, [input, mode, convert]);
+  }, [input, mode]);
+  const { output, error } = conversion;
 
   const handleSwap = () => {
     setInput(output);
@@ -142,6 +134,7 @@ export default function HtmlEntityEncoder() {
             exclusive
             onChange={(_, v) => v && setMode(v)}
             size="small"
+            aria-label="HTML entity operation"
           >
             <ToggleButton value="encode">Encode</ToggleButton>
             <ToggleButton value="decode">Decode</ToggleButton>
@@ -178,12 +171,18 @@ export default function HtmlEntityEncoder() {
               >
                 <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>Input</Typography>
                 <Tooltip title="Paste">
-                  <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+                  <IconButton size="small" onClick={handlePaste} aria-label="Paste input" sx={{ color: 'text.secondary' }}>
                     <ContentPasteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Clear">
-                  <IconButton size="small" onClick={() => setInput('')} disabled={!input} sx={{ color: 'text.secondary' }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setInput('')}
+                    disabled={!input}
+                    aria-label="Clear input"
+                    sx={{ color: 'text.secondary' }}
+                  >
                     <ClearIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
@@ -196,6 +195,7 @@ export default function HtmlEntityEncoder() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={mode === 'encode' ? 'Type text with special characters...' : 'Paste HTML entities here...'}
                 variant="standard"
+                aria-label="HTML entity input"
                 slotProps={{
                   input: {
                     disableUnderline: true,
@@ -219,6 +219,7 @@ export default function HtmlEntityEncoder() {
                   <IconButton
                     onClick={handleSwap}
                     disabled={!output}
+                    aria-label="Swap input and result"
                     sx={{
                       border: 1,
                       borderColor: 'divider',
@@ -259,7 +260,13 @@ export default function HtmlEntityEncoder() {
               >
                 <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>Result</Typography>
                 <Tooltip title="Copy result">
-                  <IconButton size="small" onClick={handleCopy} disabled={!output} sx={{ color: 'text.secondary' }}>
+                  <IconButton
+                    size="small"
+                    onClick={handleCopy}
+                    disabled={!output}
+                    aria-label="Copy result"
+                    sx={{ color: 'text.secondary' }}
+                  >
                     <ContentCopyIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
@@ -269,6 +276,7 @@ export default function HtmlEntityEncoder() {
                 rows={14}
                 fullWidth
                 value={output}
+                aria-label="HTML entity result"
                 slotProps={{
                   input: {
                     readOnly: true,

@@ -1,6 +1,9 @@
 {
   "short_name": "BitesInByte Tools",
   "name": "BitesInByte - Developer Tools",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "favicons/android-chrome-192x192.png",
@@ -13,7 +16,6 @@
       "type": "image/png"
     }
   ],
-  "start_url": "/",
   "display": "standalone",
   "theme_color": "#0a1929",
   "background_color": "#0a1929"

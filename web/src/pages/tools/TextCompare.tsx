@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Button,
   Typography,
@@ -13,63 +13,84 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ClearIcon from '@mui/icons-material/Clear';
 import { CodeDiffEditor } from '../../components/CodeEditor';
+import type { DiffLineStats } from '../../components/CodeEditor';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
 import { readFileAsText } from '../../utils/file';
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+function countLines(value: string) {
+  return value === '' ? 0 : value.split(/\r\n|\r|\n/).length;
+}
+
 export default function TextCompare() {
   const [original, setOriginal] = useState('');
   const [modified, setModified] = useState('');
+  const [sourceNames, setSourceNames] = useState<{ original?: string; modified?: string }>({});
+  const [diffStats, setDiffStats] = useState<DiffLineStats | null>({ added: 0, removed: 0 });
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
   const handleUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length < 2) {
+      const input = e.currentTarget;
+      const files = Array.from(input.files ?? []);
+      if (files.length !== 2) {
         enqueueSnackbar('Please select exactly 2 files', { variant: 'warning' });
+        input.value = '';
         return;
       }
+      if (files.some((file) => file.size > MAX_FILE_SIZE)) {
+        enqueueSnackbar('Each file must be 50 MB or smaller', { variant: 'warning' });
+        input.value = '';
+        return;
+      }
+
       try {
         const [text1, text2] = await Promise.all([readFileAsText(files[0]), readFileAsText(files[1])]);
+        setDiffStats(null);
         setOriginal(text1);
         setModified(text2);
-        enqueueSnackbar('Files loaded', { variant: 'success' });
+        setSourceNames({ original: files[0].name, modified: files[1].name });
+        enqueueSnackbar(`Loaded ${files[0].name} as Original and ${files[1].name} as Modified`, {
+          variant: 'success',
+        });
       } catch {
         enqueueSnackbar('Failed to read files', { variant: 'error' });
+      } finally {
+        input.value = '';
       }
-      e.target.value = '';
     },
     [enqueueSnackbar],
   );
 
   const handleSwap = () => {
+    setDiffStats(null);
     setOriginal(modified);
     setModified(original);
+    setSourceNames(({ original: originalName, modified: modifiedName }) => ({
+      original: modifiedName,
+      modified: originalName,
+    }));
   };
 
   const handleClear = () => {
     setOriginal('');
     setModified('');
+    setSourceNames({});
+    setDiffStats({ added: 0, removed: 0 });
   };
 
-  // Compute diff stats
-  const computeStats = () => {
-    if (!original && !modified) return null;
-    const origLines = original.split('\n');
-    const modLines = modified.split('\n');
-    const added = modLines.filter((line, i) => i >= origLines.length || origLines[i] !== line).length;
-    const removed = origLines.filter((line, i) => i >= modLines.length || modLines[i] !== line).length;
-    return {
-      originalLines: origLines.length,
-      modifiedLines: modLines.length,
-      added,
-      removed,
-    };
-  };
-
-  const stats = computeStats();
+  const lineCounts = useMemo(
+    () => ({ original: countLines(original), modified: countLines(modified) }),
+    [original, modified],
+  );
+  const hasComparison =
+    original !== '' || modified !== '' || sourceNames.original !== undefined || sourceNames.modified !== undefined;
+  const originalLabel = sourceNames.original ? `Original — ${sourceNames.original}` : 'Original text';
+  const modifiedLabel = sourceNames.modified ? `Modified — ${sourceNames.modified}` : 'Modified text';
 
   return (
     <>
@@ -100,7 +121,13 @@ export default function TextCompare() {
         >
           <Button variant="contained" component="label" size="small" startIcon={<CloudUploadIcon />}>
             Upload 2 Files
-            <input type="file" hidden multiple onChange={handleUpload} />
+            <input
+              type="file"
+              hidden
+              multiple
+              aria-label="Choose exactly two files, original first and modified second"
+              onChange={handleUpload}
+            />
           </Button>
 
           <Box sx={{ flexGrow: 1 }} />
@@ -109,7 +136,8 @@ export default function TextCompare() {
             <IconButton
               size="small"
               onClick={handleSwap}
-              disabled={!original && !modified}
+              disabled={!hasComparison}
+              aria-label="Swap original and modified text"
               sx={{ color: 'text.secondary' }}
             >
               <SwapHorizIcon fontSize="small" />
@@ -119,7 +147,8 @@ export default function TextCompare() {
             <IconButton
               size="small"
               onClick={handleClear}
-              disabled={!original && !modified}
+              disabled={!hasComparison}
+              aria-label="Clear original and modified text"
               sx={{ color: 'text.secondary' }}
             >
               <ClearIcon fontSize="small" />
@@ -128,10 +157,13 @@ export default function TextCompare() {
         </Box>
 
         {/* Stats */}
-        {stats && (original || modified) && (
+        {hasComparison && (
           <Box
+            role="status"
+            aria-live="polite"
             sx={{
               display: 'flex',
+              flexWrap: 'wrap',
               gap: 2,
               px: 2,
               py: 1,
@@ -142,14 +174,33 @@ export default function TextCompare() {
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
             }}
           >
-            <span>Original: {stats.originalLines} lines</span>
-            <span>Modified: {stats.modifiedLines} lines</span>
-            <Box component="span" sx={{ color: 'success.main' }}>+{stats.added}</Box>
-            <Box component="span" sx={{ color: 'error.main' }}>-{stats.removed}</Box>
+            <span>Original: {lineCounts.original} lines</span>
+            <span>Modified: {lineCounts.modified} lines</span>
+            {diffStats ? (
+              <>
+                <Box component="span" sx={{ color: 'success.main' }}>+{diffStats.added}</Box>
+                <Box component="span" sx={{ color: 'error.main' }}>-{diffStats.removed}</Box>
+              </>
+            ) : (
+              <span>Calculating changes…</span>
+            )}
           </Box>
         )}
 
-        <CodeDiffEditor original={original} modified={modified} height={550} />
+        <CodeDiffEditor
+          original={original}
+          modified={modified}
+          onOriginalChange={setOriginal}
+          onModifiedChange={setModified}
+          onDiffChange={setDiffStats}
+          originalLabel={originalLabel}
+          modifiedLabel={modifiedLabel}
+          height={550}
+        />
+        <Typography variant="caption" color="text.secondary">
+          On narrow screens, the editor switches to an inline diff: removed lines are from Original and added lines are
+          from Modified. Tab moves focus out of the editor.
+        </Typography>
       </Stack>
     </>
   );

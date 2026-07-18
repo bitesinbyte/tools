@@ -6,7 +6,13 @@ import { SnackbarProvider } from 'notistack';
 import { ThemeProvider } from './theme/ThemeProvider';
 import App from './App';
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('Unable to start the application: root element was not found.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <HelmetProvider>
       <BrowserRouter>

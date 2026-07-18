@@ -27,10 +27,28 @@ import yaml from 'js-yaml';
 
 type Direction = 'json-to-yaml' | 'yaml-to-json';
 
+function assertJsonCompatible(value: unknown, seen = new WeakSet<object>()): void {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new Error('YAML contains a non-finite number that JSON cannot represent');
+  }
+  if (value === undefined || typeof value === 'bigint' || typeof value === 'symbol') {
+    throw new Error(`YAML contains a ${typeof value} value that JSON cannot represent`);
+  }
+  if (value === null || typeof value !== 'object' || value instanceof Date) return;
+  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype) {
+    throw new Error('YAML contains a value type that JSON cannot represent safely');
+  }
+  if (seen.has(value)) {
+    throw new Error('YAML contains a circular reference that JSON cannot represent');
+  }
+  seen.add(value);
+  Object.values(value).forEach((entry) => assertJsonCompatible(entry, seen));
+  seen.delete(value);
+}
+
 function detectFormat(text: string): 'json' | 'yaml' | 'unknown' {
-  const trimmed = text.trim();
+  const trimmed = text.replace(/^\uFEFF/, '').trim();
   if (!trimmed) return 'unknown';
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json';
   try {
     JSON.parse(trimmed);
     return 'json';
@@ -39,7 +57,7 @@ function detectFormat(text: string): 'json' | 'yaml' | 'unknown' {
   }
   try {
     const parsed = yaml.load(trimmed);
-    if (typeof parsed === 'object' && parsed !== null) return 'yaml';
+    if (parsed !== undefined) return 'yaml';
   } catch {
     // Not valid YAML either
   }
@@ -63,10 +81,14 @@ export default function JsonYamlConverter() {
     }
     try {
       if (direction === 'json-to-yaml') {
-        const parsed = JSON.parse(input);
+        const parsed = JSON.parse(input.replace(/^\uFEFF/, ''));
         return { output: yaml.dump(parsed, { indent: 2, lineWidth: -1, noRefs: true }), error: '' };
       } else {
-        const parsed = yaml.load(input);
+        const parsed = yaml.load(input.replace(/^\uFEFF/, ''));
+        if (parsed === undefined) {
+          throw new Error('YAML document does not contain a value');
+        }
+        assertJsonCompatible(parsed);
         return { output: JSON.stringify(parsed, null, 2), error: '' };
       }
     } catch (e) {
@@ -118,8 +140,16 @@ export default function JsonYamlConverter() {
 
   const handleDownload = () => {
     const ext = outputLang === 'json' ? 'json' : 'yaml';
-    downloadFile(`converted.${ext}`, output, 'text/plain');
-    enqueueSnackbar('File downloaded', { variant: 'success' });
+    try {
+      downloadFile(
+        `converted.${ext}`,
+        output,
+        outputLang === 'json' ? 'application/json' : 'application/yaml',
+      );
+      enqueueSnackbar('File downloaded', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to download file', { variant: 'error' });
+    }
   };
 
   return (
@@ -151,6 +181,7 @@ export default function JsonYamlConverter() {
           }}
         >
           <ToggleButtonGroup
+            aria-label="Conversion direction"
             value={direction}
             exclusive
             onChange={(_, v) => v && setDirection(v)}
@@ -161,7 +192,7 @@ export default function JsonYamlConverter() {
           </ToggleButtonGroup>
 
           <Tooltip title="Swap direction & use output as input">
-            <IconButton size="small" onClick={handleSwap} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Swap conversion direction" size="small" onClick={handleSwap} sx={{ color: 'text.secondary' }}>
               <SwapHorizIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -169,12 +200,12 @@ export default function JsonYamlConverter() {
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Paste from clipboard">
-            <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Paste from clipboard" size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
               <ContentPasteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Upload file">
-            <IconButton size="small" component="label" sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Upload JSON or YAML file" size="small" component="label" sx={{ color: 'text.secondary' }}>
               <FileUploadIcon fontSize="small" />
               <input type="file" hidden accept=".json,.yaml,.yml,.txt" onChange={handleUpload} />
             </IconButton>
@@ -183,12 +214,13 @@ export default function JsonYamlConverter() {
           <Box sx={{ borderLeft: 1, borderColor: 'divider', mx: 0.5, height: 24 }} />
 
           <Tooltip title="Copy result">
-            <IconButton size="small" onClick={handleCopy} disabled={!output} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Copy converted result" size="small" onClick={handleCopy} disabled={!output} sx={{ color: 'text.secondary' }}>
               <ContentCopyIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Download result">
             <IconButton
+              aria-label="Download converted result"
               size="small"
               onClick={handleDownload}
               disabled={!output}
@@ -199,6 +231,7 @@ export default function JsonYamlConverter() {
           </Tooltip>
           <Tooltip title="Clear all">
             <IconButton
+              aria-label="Clear input"
               size="small"
               onClick={() => { setInput(''); }}
               disabled={!input && !output}
@@ -219,6 +252,7 @@ export default function JsonYamlConverter() {
                 size="small"
                 color="error"
                 variant="outlined"
+                sx={{ maxWidth: '100%', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
               />
             ) : (
               <Chip

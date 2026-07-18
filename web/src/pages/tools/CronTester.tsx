@@ -11,6 +11,7 @@ import {
   useTheme,
   IconButton,
   Tooltip,
+  MenuItem,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import LinkIcon from '@mui/icons-material/Link';
@@ -34,60 +35,86 @@ const presets = [
   { label: 'Every Sunday 3 AM', value: '0 3 * * 0' },
 ];
 
-function computeOccurrences(expr: string, count: number, from?: Date): string[] {
-  try {
-    const interval = CronExpressionParser.parse(expr, { currentDate: from ?? new Date() });
-    const results: string[] = [];
-    for (let i = 0; i < count; i++) {
-      results.push(interval.next().toDate().toLocaleString());
-    }
-    return results;
-  } catch {
-    return [];
+interface Occurrence {
+  timestamp: number;
+  label: string;
+}
+
+const TIME_ZONES = ['Local', 'UTC', ...(
+  typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : []
+)];
+
+function computeOccurrences(expr: string, count: number, timeZone: string, from?: Date): Occurrence[] {
+  const interval = CronExpressionParser.parse(expr, {
+    currentDate: from ?? new Date(),
+    ...(timeZone !== 'Local' ? { tz: timeZone } : {}),
+  });
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'long',
+    ...(timeZone !== 'Local' ? { timeZone } : {}),
+  });
+  const results: Occurrence[] = [];
+  for (let i = 0; i < count; i++) {
+    const date = interval.next().toDate();
+    results.push({ timestamp: date.getTime(), label: formatter.format(date) });
   }
+  return results;
 }
 
 export default function CronTester() {
   const [searchParams] = useSearchParams();
-  const initialExpr = searchParams.get('expression')?.replace(/\+/g, ' ') ?? '';
+  const initialExpr = searchParams.get('expression') ?? '';
+  const requestedTimeZone = searchParams.get('timezone') ?? 'Local';
   const [expression, setExpression] = useState(initialExpr);
-  const [extraOccurrences, setExtraOccurrences] = useState<{ expr: string; items: string[] }>({ expr: expression, items: [] });
+  const [timeZone, setTimeZone] = useState(TIME_ZONES.includes(requestedTimeZone) ? requestedTimeZone : 'Local');
+  const [extraOccurrences, setExtraOccurrences] = useState<{ key: string; items: Occurrence[] }>({ key: '', items: [] });
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
+  const occurrenceKey = `${expression}\n${timeZone}`;
   const { description, error, initialOccurrences } = useMemo(() => {
     if (!expression.trim()) {
-      return { description: '', error: '', initialOccurrences: [] as string[] };
+      return { description: '', error: '', initialOccurrences: [] as Occurrence[] };
     }
     try {
       const desc = cronstrue.toString(expression);
-      const occ = computeOccurrences(expression, 10);
+      const occ = computeOccurrences(expression, 10, timeZone);
       return { description: desc, error: '', initialOccurrences: occ };
     } catch (e) {
-      return { description: '', error: (e as Error).message, initialOccurrences: [] as string[] };
+      return { description: '', error: (e as Error).message, initialOccurrences: [] as Occurrence[] };
     }
-  }, [expression]);
+  }, [expression, timeZone]);
 
   const occurrences = useMemo(() => {
-    const extras = extraOccurrences.expr === expression ? extraOccurrences.items : [];
+    const extras = extraOccurrences.key === occurrenceKey ? extraOccurrences.items : [];
     return [...initialOccurrences, ...extras];
-  }, [initialOccurrences, extraOccurrences, expression]);
+  }, [initialOccurrences, extraOccurrences, occurrenceKey]);
 
   const handleMore = useCallback(() => {
     if (!expression.trim()) return;
-    const allOcc = [...initialOccurrences, ...(extraOccurrences.expr === expression ? extraOccurrences.items : [])];
-    const lastDate = allOcc.length > 0 ? new Date(allOcc[allOcc.length - 1]) : new Date();
-    const more = computeOccurrences(expression, 10, lastDate);
-    setExtraOccurrences((prev) => ({
-      expr: expression,
-      items: prev.expr === expression ? [...prev.items, ...more] : more,
-    }));
-  }, [expression, initialOccurrences, extraOccurrences]);
+    if (error) return;
+    const allOcc = [...initialOccurrences, ...(extraOccurrences.key === occurrenceKey ? extraOccurrences.items : [])];
+    const lastDate = allOcc.length > 0 ? new Date(allOcc[allOcc.length - 1].timestamp) : new Date();
+    try {
+      const more = computeOccurrences(expression, 10, timeZone, lastDate);
+      setExtraOccurrences((prev) => ({
+        key: occurrenceKey,
+        items: prev.key === occurrenceKey ? [...prev.items, ...more] : more,
+      }));
+    } catch (e) {
+      enqueueSnackbar((e as Error).message, { variant: 'error' });
+    }
+  }, [expression, timeZone, error, initialOccurrences, extraOccurrences, occurrenceKey, enqueueSnackbar]);
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/cron?expression=${expression.replace(/ /g, '+')}`;
-    const ok = await copyToClipboard(url);
+    const url = new URL('/cron', window.location.origin);
+    url.searchParams.set('expression', expression);
+    if (timeZone !== 'Local') url.searchParams.set('timezone', timeZone);
+    const ok = await copyToClipboard(url.toString());
     enqueueSnackbar(ok ? 'Link copied!' : 'Failed to copy', { variant: ok ? 'success' : 'error' });
   };
 
@@ -107,7 +134,7 @@ export default function CronTester() {
 
         {/* Input */}
         <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-          <Grid size={{ xs: 12, md: 8 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               label="Cron Expression"
               fullWidth
@@ -133,8 +160,19 @@ export default function CronTester() {
               }}
             />
           </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              select
+              label="Time zone"
+              fullWidth
+              value={timeZone}
+              onChange={(e) => setTimeZone(e.target.value)}
+            >
+              {TIME_ZONES.map((zone) => <MenuItem key={zone} value={zone}>{zone}</MenuItem>)}
+            </TextField>
+          </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
-            <Button variant="outlined" startIcon={<AddIcon />} fullWidth onClick={handleMore} disabled={!expression.trim()}>
+            <Button variant="outlined" startIcon={<AddIcon />} fullWidth onClick={handleMore} disabled={!expression.trim() || !!error}>
               More
             </Button>
           </Grid>
@@ -191,7 +229,7 @@ export default function CronTester() {
             >
               {occurrences.map((occ, i) => (
                 <Box
-                  key={i}
+                  key={occ.timestamp}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -221,7 +259,7 @@ export default function CronTester() {
                       fontSize: '0.875rem',
                     }}
                   >
-                    {occ}
+                    {occ.label}
                   </Typography>
                 </Box>
               ))}

@@ -48,6 +48,7 @@ interface Endpoint {
   description?: string;
   parameters: ParamInfo[];
   requestBodySchema?: Record<string, unknown>;
+  requestBodyRequired: boolean;
 }
 
 interface ParamInfo {
@@ -152,13 +153,42 @@ function toolName(method: string, path: string): string {
   return `${method}_${slug}`.toLowerCase();
 }
 
+function tsString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function safeIdentifier(value: string, fallback = 'value'): string {
+  const identifier = value.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+  return identifier || fallback;
+}
+
+function safeToolName(value: string): string {
+  return safeIdentifier(value, 'tool').toLowerCase();
+}
+
+const PYTHON_KEYWORDS = new Set([
+  'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class',
+  'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from',
+  'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass',
+  'raise', 'return', 'try', 'while', 'with', 'yield',
+]);
+
+function safePythonIdentifier(value: string, fallback = 'value'): string {
+  const identifier = safeIdentifier(value, fallback);
+  return PYTHON_KEYWORDS.has(identifier) ? `${identifier}_` : identifier;
+}
+
+function pythonString(value: string): string {
+  return JSON.stringify(value).replace(/\u2028|\u2029/g, '');
+}
+
 // ---------------------------------------------------------------------------
 // OpenAPI parser
 // ---------------------------------------------------------------------------
 
 function resolveRef(root: Record<string, unknown>, ref: string): Record<string, unknown> | undefined {
   if (!ref.startsWith('#/')) return undefined;
-  const parts = ref.slice(2).split('/');
+  const parts = ref.slice(2).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'));
   let current: unknown = root;
   for (const part of parts) {
     if (current && typeof current === 'object' && !Array.isArray(current)) {
@@ -176,6 +206,14 @@ function resolveSchema(root: Record<string, unknown>, schema: unknown): Record<s
   if (s.$ref && typeof s.$ref === 'string') {
     const resolved = resolveRef(root, s.$ref);
     return resolved ? resolveSchema(root, resolved) : {};
+  }
+  if (Array.isArray(s.allOf)) {
+    const members = s.allOf.map((member) => resolveSchema(root, member));
+    const required = [...new Set(members.flatMap((member) => Array.isArray(member.required) ? member.required as string[] : []))];
+    const properties = Object.assign({}, ...members.map((member) => (
+      member.properties && typeof member.properties === 'object' ? member.properties : {}
+    )));
+    return { ...s, type: s.type || 'object', properties, required };
   }
   // Resolve nested property refs
   if (s.properties && typeof s.properties === 'object') {
@@ -225,7 +263,15 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
   // Base URL
   let baseUrl = '';
   if (doc.servers && Array.isArray(doc.servers) && doc.servers.length > 0) {
-    baseUrl = (doc.servers[0] as Record<string, unknown>).url as string || '';
+    const server = doc.servers[0] as Record<string, unknown>;
+    baseUrl = typeof server.url === 'string' ? server.url : '';
+    const variables = server.variables && typeof server.variables === 'object'
+      ? server.variables as Record<string, Record<string, unknown>>
+      : {};
+    baseUrl = baseUrl.replace(/\{([^}]+)\}/g, (placeholder, name) => {
+      const defaultValue = variables[name]?.default;
+      return defaultValue === undefined ? placeholder : String(defaultValue);
+    });
   } else if (doc.host) {
     // Swagger 2.0
     const scheme = Array.isArray(doc.schemes) && doc.schemes.length > 0 ? doc.schemes[0] : 'https';
@@ -234,12 +280,18 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
   }
 
   // Paths
-  const paths = (doc.paths as Record<string, Record<string, unknown>>) || {};
+  if (!doc.paths || typeof doc.paths !== 'object' || Array.isArray(doc.paths)) {
+    return { spec: { title, version, baseUrl, endpoints: [] }, error: 'Invalid spec: paths must be an object' };
+  }
+  const paths = doc.paths as Record<string, Record<string, unknown>>;
   const endpoints: Endpoint[] = [];
   const httpMethods = ['get', 'post', 'put', 'delete', 'patch'];
 
-  for (const [path, pathItem] of Object.entries(paths)) {
-    if (!pathItem || typeof pathItem !== 'object') continue;
+  for (const [path, rawPathItem] of Object.entries(paths)) {
+    if (!rawPathItem || typeof rawPathItem !== 'object') continue;
+    const pathItem = rawPathItem.$ref
+      ? resolveRef(doc, rawPathItem.$ref as string) || rawPathItem
+      : rawPathItem;
     for (const method of httpMethods) {
       const op = pathItem[method] as Record<string, unknown> | undefined;
       if (!op) continue;
@@ -247,13 +299,18 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
       const parameters: ParamInfo[] = [];
 
       // Path-level parameters
-      const pathParams = (pathItem.parameters as Array<Record<string, unknown>>) || [];
-      const opParams = (op.parameters as Array<Record<string, unknown>>) || [];
-      const allParams = [...pathParams, ...opParams];
-
-      for (const rawParam of allParams) {
+      const pathParams = Array.isArray(pathItem.parameters) ? pathItem.parameters as Array<Record<string, unknown>> : [];
+      const opParams = Array.isArray(op.parameters) ? op.parameters as Array<Record<string, unknown>> : [];
+      const mergedParams = new Map<string, Record<string, unknown>>();
+      for (const rawParam of [...pathParams, ...opParams]) {
         const param = rawParam.$ref ? resolveRef(doc, rawParam.$ref as string) || rawParam : rawParam;
+        mergedParams.set(`${String(param.in)}:${String(param.name)}`, param);
+      }
+      const allParams = [...mergedParams.values()];
+
+      for (const param of allParams) {
         if (param.in === 'path' || param.in === 'query' || param.in === 'header') {
+          if (typeof param.name !== 'string' || !param.name) continue;
           parameters.push({
             name: param.name as string,
             in: param.in as string,
@@ -266,18 +323,22 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
 
       // Request body
       let requestBodySchema: Record<string, unknown> | undefined;
+      let requestBodyRequired = false;
       if (op.requestBody && typeof op.requestBody === 'object') {
-        const body = op.requestBody as Record<string, unknown>;
+        const rawBody = op.requestBody as Record<string, unknown>;
+        const body = rawBody.$ref ? resolveRef(doc, rawBody.$ref as string) || rawBody : rawBody;
+        requestBodyRequired = !!body.required;
         const content = body.content as Record<string, Record<string, unknown>> | undefined;
-        if (content?.['application/json']?.schema) {
-          requestBodySchema = resolveSchema(doc, content['application/json'].schema);
+        const media = content?.['application/json'] || content?.['application/*+json'] || (content ? Object.values(content)[0] : undefined);
+        if (media?.schema) {
+          requestBodySchema = resolveSchema(doc, media.schema);
         }
       }
       // Swagger 2.0: body parameter
-      for (const rawParam of allParams) {
-        const param = rawParam.$ref ? resolveRef(doc, rawParam.$ref as string) || rawParam : rawParam;
+      for (const param of allParams) {
         if (param.in === 'body' && param.schema) {
           requestBodySchema = resolveSchema(doc, param.schema);
+          requestBodyRequired = !!param.required;
         }
       }
 
@@ -289,6 +350,7 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
         description: (op.description as string) || '',
         parameters,
         requestBodySchema,
+        requestBodyRequired,
       });
     }
   }
@@ -307,11 +369,11 @@ function parseOpenApiSpec(raw: string): { spec: ParsedSpec; error: string } {
 function openApiTypeToZod(type: string): string {
   switch (type) {
     case 'string': return 'z.string()';
-    case 'integer': return 'z.number()';
+    case 'integer': return 'z.number().int()';
     case 'number': return 'z.number()';
     case 'boolean': return 'z.boolean()';
     case 'array': return 'z.array(z.unknown())';
-    case 'object': return 'z.record(z.unknown())';
+    case 'object': return 'z.record(z.string(), z.unknown())';
     default: return 'z.string()';
   }
 }
@@ -324,11 +386,11 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
   lines.push('import { z } from "zod";');
   lines.push('');
   lines.push(`const server = new McpServer({`);
-  lines.push(`  name: "${serverName}",`);
-  lines.push(`  version: "${spec.version}",`);
+  lines.push(`  name: ${tsString(serverName)},`);
+  lines.push(`  version: ${tsString(spec.version)},`);
   lines.push(`});`);
   lines.push('');
-  lines.push(`const BASE_URL = "${spec.baseUrl}";`);
+  lines.push(`const BASE_URL = ${tsString(spec.baseUrl)};`);
 
   if (includeAuth) {
     lines.push('');
@@ -340,8 +402,12 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
 
   lines.push('');
 
+  const usedToolNames = new Map<string, number>();
   for (const ep of spec.endpoints) {
-    const name = ep.operationId || toolName(ep.method, ep.path);
+    const baseName = safeToolName(ep.operationId || toolName(ep.method, ep.path));
+    const occurrence = (usedToolNames.get(baseName) ?? 0) + 1;
+    usedToolNames.set(baseName, occurrence);
+    const name = occurrence === 1 ? baseName : `${baseName}_${occurrence}`;
     const desc = ep.summary || ep.description || `${ep.method.toUpperCase()} ${ep.path}`;
 
     // Build schema params
@@ -353,9 +419,9 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
 
     for (const param of ep.parameters) {
       const zodType = openApiTypeToZod(param.type);
-      let entry = `    ${param.name}: ${zodType}`;
+      let entry = `    ${tsString(param.name)}: ${zodType}`;
       if (!param.required) entry += '.optional()';
-      if (param.description) entry += `.describe("${param.description.replace(/"/g, '\\"')}")`;
+      if (param.description) entry += `.describe(${tsString(param.description)})`;
       entry += ',';
       schemaEntries.push(entry);
       allParamNames.push(param.name);
@@ -366,7 +432,7 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
     }
 
     // Request body properties
-    const bodyParamNames: string[] = [];
+    const bodyParamNames: Array<{ property: string; arg: string }> = [];
     if (ep.requestBodySchema) {
       const props = ep.requestBodySchema.properties as Record<string, Record<string, unknown>> | undefined;
       const requiredFields = (ep.requestBodySchema.required as string[]) || [];
@@ -374,22 +440,31 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
         for (const [propName, propSchema] of Object.entries(props)) {
           const propType = (propSchema.type as string) || 'string';
           const zodType = openApiTypeToZod(propType);
-          const isRequired = requiredFields.includes(propName);
-          let entry = `    ${propName}: ${zodType}`;
+          const isRequired = ep.requestBodyRequired && requiredFields.includes(propName);
+          let argName = allParamNames.includes(propName) ? `body_${propName}` : propName;
+          while (allParamNames.includes(argName)) argName = `body_${argName}`;
+          let entry = `    ${tsString(argName)}: ${zodType}`;
           if (!isRequired) entry += '.optional()';
           const propDesc = propSchema.description as string | undefined;
-          if (propDesc) entry += `.describe("${propDesc.replace(/"/g, '\\"')}")`;
+          if (propDesc) entry += `.describe(${tsString(propDesc)})`;
           entry += ',';
           schemaEntries.push(entry);
-          allParamNames.push(propName);
-          bodyParamNames.push(propName);
+          allParamNames.push(argName);
+          bodyParamNames.push({ property: propName, arg: argName });
         }
+      } else {
+        let argName = allParamNames.includes('body') ? 'request_body' : 'body';
+        while (allParamNames.includes(argName)) argName = `request_${argName}`;
+        const zodType = openApiTypeToZod((ep.requestBodySchema.type as string) || 'object');
+        schemaEntries.push(`    ${tsString(argName)}: ${zodType}${ep.requestBodyRequired ? '' : '.optional()'},`);
+        allParamNames.push(argName);
+        bodyParamNames.push({ property: '', arg: argName });
       }
     }
 
     lines.push(`server.tool(`);
-    lines.push(`  "${name}",`);
-    lines.push(`  "${desc.replace(/"/g, '\\"')}",`);
+    lines.push(`  ${tsString(name)},`);
+    lines.push(`  ${tsString(desc)},`);
 
     if (schemaEntries.length > 0) {
       lines.push(`  {`);
@@ -401,25 +476,29 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
 
     // Handler
     if (allParamNames.length > 0) {
-      lines.push(`  async ({ ${allParamNames.join(', ')} }) => {`);
+      lines.push(`  async (args) => {`);
     } else {
       lines.push(`  async () => {`);
     }
 
     // Build URL with path params
-    let urlExpr = '`${BASE_URL}' + ep.path.replace(/\{([^}]+)\}/g, '${$1}') + '`';
+    let pathExpr = tsString(ep.path);
+    for (const pathParam of pathParams) {
+      pathExpr += `.replace(${tsString(`{${pathParam.name}}`)}, encodeURIComponent(String(args[${tsString(pathParam.name)}])))`;
+    }
+    let urlExpr = `BASE_URL + ${pathExpr}`;
 
     // Query string
     if (queryParams.length > 0) {
       lines.push(`    const params = new URLSearchParams();`);
       for (const qp of queryParams) {
         if (qp.required) {
-          lines.push(`    params.set("${qp.name}", String(${qp.name}));`);
+          lines.push(`    params.set(${tsString(qp.name)}, String(args[${tsString(qp.name)}]));`);
         } else {
-          lines.push(`    if (${qp.name} !== undefined) params.set("${qp.name}", String(${qp.name}));`);
+          lines.push(`    if (args[${tsString(qp.name)}] !== undefined) params.set(${tsString(qp.name)}, String(args[${tsString(qp.name)}]));`);
         }
       }
-      urlExpr = `${urlExpr} + "?" + params.toString()`;
+      urlExpr = `${urlExpr} + (params.size ? "?" + params.toString() : "")`;
     }
 
     lines.push(`    const url = ${urlExpr};`);
@@ -431,14 +510,20 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
     const headerEntries: string[] = [];
     if (bodyParamNames.length > 0) headerEntries.push(`"Content-Type": "application/json"`);
     if (includeAuth) headerEntries.push(`...AUTH_HEADERS`);
-    for (const hp of headerParams) headerEntries.push(`"${hp.name}": String(${hp.name})`);
+    for (const hp of headerParams) {
+      if (hp.required) headerEntries.push(`${tsString(hp.name)}: String(args[${tsString(hp.name)}])`);
+      else headerEntries.push(`...(args[${tsString(hp.name)}] === undefined ? {} : { ${tsString(hp.name)}: String(args[${tsString(hp.name)}]) })`);
+    }
 
     if (headerEntries.length > 0) {
       fetchOpts.push(`      headers: { ${headerEntries.join(', ')} },`);
     }
 
     if (bodyParamNames.length > 0) {
-      fetchOpts.push(`      body: JSON.stringify({ ${bodyParamNames.join(', ')} }),`);
+      const bodyExpression = bodyParamNames.length === 1 && bodyParamNames[0].property === ''
+        ? `args[${tsString(bodyParamNames[0].arg)}]`
+        : `{ ${bodyParamNames.map(({ property, arg }) => `${tsString(property)}: args[${tsString(arg)}]`).join(', ')} }`;
+      fetchOpts.push(`      body: JSON.stringify(${bodyExpression}),`);
     }
 
     if (includeErrorHandling) {
@@ -451,9 +536,9 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
       lines.push(`          content: [{ type: "text", text: \`Error: \${res.status} \${res.statusText}\` }],`);
       lines.push(`        };`);
       lines.push(`      }`);
-      lines.push(`      const data = await res.json();`);
+      lines.push(`      const text = await res.text();`);
       lines.push(`      return {`);
-      lines.push(`        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],`);
+      lines.push(`        content: [{ type: "text", text: text || \`HTTP \${res.status}\` }],`);
       lines.push(`      };`);
       lines.push(`    } catch (error) {`);
       lines.push(`      return {`);
@@ -464,9 +549,9 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
       lines.push(`    const res = await fetch(url, {`);
       for (const opt of fetchOpts) lines.push(opt);
       lines.push(`    });`);
-      lines.push(`    const data = await res.json();`);
+      lines.push(`    const text = await res.text();`);
       lines.push(`    return {`);
-      lines.push(`      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],`);
+      lines.push(`      content: [{ type: "text", text: text || \`HTTP \${res.status}\` }],`);
       lines.push(`    };`);
     }
 
@@ -479,7 +564,7 @@ function generateTypeScript(spec: ParsedSpec, serverName: string, includeAuth: b
   lines.push('await server.connect(transport);');
   lines.push('');
 
-  return lines.join('\n');
+  return lines.filter((line) => !line.trimStart().startsWith('// "Authorization"')).join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -517,8 +602,12 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
 
   lines.push('');
 
+  const usedToolNames = new Map<string, number>();
   for (const ep of spec.endpoints) {
-    const name = ep.operationId || toolName(ep.method, ep.path);
+    const baseName = safePythonIdentifier(safeToolName(ep.operationId || toolName(ep.method, ep.path)), 'tool');
+    const occurrence = (usedToolNames.get(baseName) ?? 0) + 1;
+    usedToolNames.set(baseName, occurrence);
+    const name = occurrence === 1 ? baseName : `${baseName}_${occurrence}`;
     const desc = ep.summary || ep.description || `${ep.method.toUpperCase()} ${ep.path}`;
 
     // Build function params
@@ -526,17 +615,33 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
     const optionalParams: string[] = [];
     const pathParams: ParamInfo[] = [];
     const queryParams: ParamInfo[] = [];
-    const bodyParamNames: string[] = [];
+    const headerParams: ParamInfo[] = [];
+    const bodyParamNames: Array<{ property: string; variable: string }> = [];
+    const paramVars = new Map<string, string>();
+    const usedVars = new Set<string>();
+    const variableFor = (rawName: string): string => {
+      const existing = paramVars.get(rawName);
+      if (existing) return existing;
+      const base = safePythonIdentifier(rawName);
+      let candidate = base;
+      let suffix = 2;
+      while (usedVars.has(candidate)) candidate = `${base}_${suffix++}`;
+      usedVars.add(candidate);
+      paramVars.set(rawName, candidate);
+      return candidate;
+    };
 
     for (const param of ep.parameters) {
       const pyType = openApiTypeToPython(param.type);
+      const variable = variableFor(param.name);
       if (param.in === 'path') pathParams.push(param);
       else if (param.in === 'query') queryParams.push(param);
+      else if (param.in === 'header') headerParams.push(param);
 
       if (param.required) {
-        requiredParams.push(`${param.name}: ${pyType}`);
+        requiredParams.push(`${variable}: ${pyType}`);
       } else {
-        optionalParams.push(`${param.name}: ${pyType} | None = None`);
+        optionalParams.push(`${variable}: ${pyType} | None = None`);
       }
     }
 
@@ -548,13 +653,21 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
         for (const [propName, propSchema] of Object.entries(props)) {
           const propType = (propSchema.type as string) || 'string';
           const pyType = openApiTypeToPython(propType);
-          bodyParamNames.push(propName);
-          if (requiredFields.includes(propName)) {
-            requiredParams.push(`${propName}: ${pyType}`);
+          const baseVariable = safePythonIdentifier(propName);
+          const variable = usedVars.has(baseVariable) ? variableFor(`body_${propName}`) : variableFor(propName);
+          bodyParamNames.push({ property: propName, variable });
+          if (ep.requestBodyRequired && requiredFields.includes(propName)) {
+            requiredParams.push(`${variable}: ${pyType}`);
           } else {
-            optionalParams.push(`${propName}: ${pyType} | None = None`);
+            optionalParams.push(`${variable}: ${pyType} | None = None`);
           }
         }
+      } else {
+        const variable = variableFor(usedVars.has('body') ? 'request_body' : 'body');
+        bodyParamNames.push({ property: '', variable });
+        const pyType = openApiTypeToPython((ep.requestBodySchema.type as string) || 'object');
+        if (ep.requestBodyRequired) requiredParams.push(`${variable}: ${pyType}`);
+        else optionalParams.push(`${variable}: ${pyType} | None = None`);
       }
     }
 
@@ -564,23 +677,31 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
     lines.push('');
     lines.push('@mcp.tool()');
     lines.push(`async def ${name}(${paramStr}) -> str:`);
-    lines.push(`    """${desc.replace(/"/g, '\\"')}"""`);
+    lines.push(`    ${pythonString(desc)}`);
     lines.push('    import httpx');
+    lines.push('    from urllib.parse import quote');
     lines.push('');
 
     // Build URL
-    let urlStr = ep.path;
+    let urlExpr = pythonString(ep.path);
     for (const pp of pathParams) {
-      urlStr = urlStr.replace(`{${pp.name}}`, `{${pp.name}}`);
+      urlExpr += `.replace(${pythonString(`{${pp.name}}`)}, quote(str(${variableFor(pp.name)}), safe=""))`;
     }
-    lines.push(`    url = f"{BASE_URL}${urlStr}"`);
+    lines.push(`    url = BASE_URL + ${urlExpr}`);
 
     // Headers
-    if (bodyParamNames.length > 0 || includeAuth) {
+    if (bodyParamNames.length > 0 || includeAuth || headerParams.length > 0) {
       const headerParts: string[] = [];
       if (bodyParamNames.length > 0) headerParts.push('"Content-Type": "application/json"');
       if (includeAuth) headerParts.push('**AUTH_HEADERS');
+      for (const hp of headerParams.filter((param) => param.required)) {
+        headerParts.push(`${pythonString(hp.name)}: str(${variableFor(hp.name)})`);
+      }
       lines.push(`    headers = {${headerParts.join(', ')}}`);
+      for (const hp of headerParams.filter((param) => !param.required)) {
+        lines.push(`    if ${variableFor(hp.name)} is not None:`);
+        lines.push(`        headers[${pythonString(hp.name)}] = str(${variableFor(hp.name)})`);
+      }
     }
 
     // Query params
@@ -588,23 +709,26 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
       lines.push(`    params = {}`);
       for (const qp of queryParams) {
         if (qp.required) {
-          lines.push(`    params["${qp.name}"] = ${qp.name}`);
+          lines.push(`    params[${pythonString(qp.name)}] = ${variableFor(qp.name)}`);
         } else {
-          lines.push(`    if ${qp.name} is not None:`);
-          lines.push(`        params["${qp.name}"] = ${qp.name}`);
+          lines.push(`    if ${variableFor(qp.name)} is not None:`);
+          lines.push(`        params[${pythonString(qp.name)}] = ${variableFor(qp.name)}`);
         }
       }
     }
 
     // Body
     if (bodyParamNames.length > 0) {
-      lines.push(`    json_body = {`);
-      for (const bp of bodyParamNames) {
-        lines.push(`        "${bp}": ${bp},`);
+      if (bodyParamNames.length === 1 && bodyParamNames[0].property === '') {
+        lines.push(`    json_body = ${bodyParamNames[0].variable}`);
+      } else {
+        lines.push(`    json_body = {`);
+        for (const bp of bodyParamNames) {
+          lines.push(`        ${pythonString(bp.property)}: ${bp.variable},`);
+        }
+        lines.push(`    }`);
+        lines.push(`    json_body = {k: v for k, v in json_body.items() if v is not None}`);
       }
-      lines.push(`    }`);
-      // Remove None values
-      lines.push(`    json_body = {k: v for k, v in json_body.items() if v is not None}`);
     }
 
     // HTTP call
@@ -612,7 +736,7 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
       lines.push('    try:');
       lines.push('        async with httpx.AsyncClient() as client:');
       const callArgs: string[] = [`url`];
-      if (bodyParamNames.length > 0 || includeAuth) callArgs.push('headers=headers');
+      if (bodyParamNames.length > 0 || includeAuth || headerParams.length > 0) callArgs.push('headers=headers');
       if (queryParams.length > 0) callArgs.push('params=params');
       if (bodyParamNames.length > 0) callArgs.push('json=json_body');
       lines.push(`            resp = await client.${ep.method}(${callArgs.join(', ')})`);
@@ -625,7 +749,7 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
     } else {
       lines.push('    async with httpx.AsyncClient() as client:');
       const callArgs: string[] = [`url`];
-      if (bodyParamNames.length > 0 || includeAuth) callArgs.push('headers=headers');
+      if (bodyParamNames.length > 0 || includeAuth || headerParams.length > 0) callArgs.push('headers=headers');
       if (queryParams.length > 0) callArgs.push('params=params');
       if (bodyParamNames.length > 0) callArgs.push('json=json_body');
       lines.push(`        resp = await client.${ep.method}(${callArgs.join(', ')})`);
@@ -638,7 +762,7 @@ function generatePython(spec: ParsedSpec, serverName: string, includeAuth: boole
   lines.push('mcp.run()');
   lines.push('');
 
-  return lines.join('\n');
+  return lines.filter((line) => !line.trimStart().startsWith('# "Authorization"')).join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -706,8 +830,9 @@ export default function OpenApiToMcp() {
 
   const handleDownload = () => {
     const ext = outputLang === 'typescript' ? 'ts' : 'py';
-    const name = serverName.trim() || (spec ? slugify(spec.title) : 'mcp-server');
-    downloadFile(`${name}-mcp-server.${ext}`, output, 'text/plain');
+    const name = slugify(serverName.trim()) || (spec ? slugify(spec.title) : '') || 'mcp-server';
+    const mime = outputLang === 'typescript' ? 'text/typescript' : 'text/x-python';
+    downloadFile(`${name}-mcp-server.${ext}`, output, mime);
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Typography,
   Stack,
@@ -25,44 +25,47 @@ import { copyToClipboard } from '../../utils/file';
 
 type Mode = 'encode' | 'decode';
 
-function useCodec() {
-  const base64 = {
-    encode: (s: string) => btoa(unescape(encodeURIComponent(s))),
-    decode: (s: string) => decodeURIComponent(escape(atob(s))),
-  };
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
 
-  const url = {
-    encode: (s: string) => encodeURIComponent(s),
-    decode: (s: string) => decodeURIComponent(s),
-  };
+function normalizeBase64(value: string): string {
+  const compact = value.replace(/\s/g, '');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
+    throw new Error('Invalid Base64 input');
+  }
+  const unpadded = compact.replace(/=+$/, '');
+  return unpadded.padEnd(Math.ceil(unpadded.length / 4) * 4, '=');
+}
 
-  const html = {
-    encode: (s: string) => {
-      const el = document.createElement('div');
-      el.textContent = s;
-      return el.innerHTML;
-    },
-    decode: (s: string) => {
-      const el = document.createElement('div');
-      el.innerHTML = s;
-      return el.textContent ?? '';
-    },
-  };
+function decodeBase64(value: string): string {
+  const binary = atob(normalizeBase64(value));
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('Base64 data is not valid UTF-8 text');
+  }
+}
 
-  const hash = {
-    encode: async (s: string) => {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(s);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-    },
-    decode: () => {
-      throw new Error('Hash functions are one-way and cannot be decoded');
-    },
-  };
+function encodeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]!);
+}
 
-  return { base64, url, html, hash };
+function decodeHtml(value: string): string {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = value.replace(/</g, '&lt;');
+  return textarea.value;
 }
 
 const tabLabels = ['Base64', 'URL', 'HTML', 'SHA-256'] as const;
@@ -76,38 +79,52 @@ export default function EncodeDecode() {
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
   const { enqueueSnackbar } = useSnackbar();
-  const codecs = useCodec();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
   const isHashTab = tabKeys[tab] === 'hash';
 
-  const convert = useCallback(
-    async (text: string, currentMode: Mode, currentTab: number) => {
-      if (!text.trim()) {
+  useEffect(() => {
+    let cancelled = false;
+
+    const convert = async () => {
+      if (input.length === 0) {
         setOutput('');
         setError('');
         return;
       }
       try {
-        const codec = codecs[tabKeys[currentTab]];
-        const result = currentMode === 'encode' ? await codec.encode(text) : codec.decode(text);
-        setOutput(result);
-        setError('');
+        let result: string;
+        const currentTab = tabKeys[tab];
+        if (currentTab === 'base64') {
+          result = mode === 'encode'
+            ? bytesToBase64(new TextEncoder().encode(input))
+            : decodeBase64(input);
+        } else if (currentTab === 'url') {
+          result = mode === 'encode' ? encodeURIComponent(input) : decodeURIComponent(input);
+        } else if (currentTab === 'html') {
+          result = mode === 'encode' ? encodeHtml(input) : decodeHtml(input);
+        } else {
+          const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+          result = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        }
+        if (!cancelled) {
+          setOutput(result);
+          setError('');
+        }
       } catch (e) {
-        setOutput('');
-        setError((e as Error).message);
+        if (!cancelled) {
+          setOutput('');
+          setError(e instanceof URIError ? 'Invalid percent-encoded URL input' : (e as Error).message);
+        }
       }
-    },
-    // codecs is recreated every render but its functions are stable
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+    };
 
-  // Real-time conversion
-  useEffect(() => {
-    convert(input, mode, tab);
-  }, [input, mode, tab, convert]);
+    void convert();
+    return () => {
+      cancelled = true;
+    };
+  }, [input, mode, tab]);
 
   const handleTabChange = (_: unknown, newTab: number) => {
     setTab(newTab);
@@ -168,8 +185,12 @@ export default function EncodeDecode() {
           <Tabs
             value={tab}
             onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            aria-label="Encoding format"
             sx={{
               minHeight: 36,
+              maxWidth: '100%',
               '& .MuiTab-root': { minHeight: 36, py: 0.5 },
             }}
           >
@@ -186,6 +207,7 @@ export default function EncodeDecode() {
             onChange={(_, v) => v && setMode(v)}
             size="small"
             disabled={isHashTab}
+            aria-label="Operation"
           >
             <ToggleButton value="encode">Encode</ToggleButton>
             <ToggleButton value="decode">Decode</ToggleButton>
@@ -222,7 +244,7 @@ export default function EncodeDecode() {
               >
                 <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>Input</Typography>
                 <Tooltip title="Paste">
-                  <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+                  <IconButton size="small" onClick={handlePaste} aria-label="Paste input" sx={{ color: 'text.secondary' }}>
                     <ContentPasteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
@@ -231,6 +253,7 @@ export default function EncodeDecode() {
                     size="small"
                     onClick={() => setInput('')}
                     disabled={!input}
+                    aria-label="Clear input"
                     sx={{ color: 'text.secondary' }}
                   >
                     <ClearIcon sx={{ fontSize: 16 }} />
@@ -245,6 +268,7 @@ export default function EncodeDecode() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type or paste text here..."
                 variant="standard"
+                aria-label="Input text"
                 slotProps={{
                   input: {
                     disableUnderline: true,
@@ -269,6 +293,7 @@ export default function EncodeDecode() {
                   <IconButton
                     onClick={handleSwap}
                     disabled={isHashTab || !output}
+                    aria-label="Swap input and result"
                     sx={{
                       border: 1,
                       borderColor: 'divider',
@@ -313,6 +338,7 @@ export default function EncodeDecode() {
                     size="small"
                     onClick={handleCopy}
                     disabled={!output}
+                    aria-label="Copy result"
                     sx={{ color: 'text.secondary' }}
                   >
                     <ContentCopyIcon sx={{ fontSize: 16 }} />
@@ -324,6 +350,7 @@ export default function EncodeDecode() {
                 rows={14}
                 fullWidth
                 value={output}
+                aria-label="Conversion result"
                 slotProps={{
                   input: {
                     readOnly: true,

@@ -18,6 +18,8 @@ import TranslateIcon from '@mui/icons-material/Translate';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
 import { copyToClipboard } from '../../utils/file';
+import CronExpressionParser from 'cron-parser';
+import cronstrue from 'cronstrue';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -27,6 +29,13 @@ const MONTH_NAMES = [
 ];
 
 const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const MONTH_ALIASES: Record<string, number> = {
+  JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6,
+  JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
+};
+const DOW_ALIASES: Record<string, number> = {
+  SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6,
+};
 
 const FIELD_META = [
   { label: 'Minute', range: '0-59', min: 0, max: 59 },
@@ -69,6 +78,14 @@ function joinList(items: string[]): string {
   return items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
 }
 
+function normalizeFieldAliases(field: string, fieldIndex: number): string {
+  const aliases = fieldIndex === 3 ? MONTH_ALIASES : fieldIndex === 4 ? DOW_ALIASES : {};
+  return field.replace(/[A-Za-z]{3}/g, (name) => {
+    const value = aliases[name.toUpperCase()];
+    return value === undefined ? name : String(value);
+  });
+}
+
 function parseField(field: string, min: number, max: number): number[] | null {
   const values = new Set<number>();
 
@@ -89,6 +106,7 @@ function parseField(field: string, min: number, max: number): number[] | null {
         start = parseInt(rm[1], 10);
         if (rm[2] !== undefined) end = parseInt(rm[2], 10);
       }
+
       for (let i = start; i <= end; i += step) values.add(i);
     } else if (rangeMatch) {
       const a = parseInt(rangeMatch[1], 10);
@@ -127,6 +145,7 @@ interface TranslationError {
 
 function describeField(raw: string, fieldIndex: number): string {
   const meta = FIELD_META[fieldIndex];
+  raw = normalizeFieldAliases(raw, fieldIndex);
 
   if (raw === '*') return `every ${meta.label.toLowerCase()}`;
 
@@ -181,12 +200,21 @@ function translateCron(expr: string): TranslationResult | TranslationError {
 
   const [minuteRaw, hourRaw, domRaw, monthRaw, dowRaw] = parts;
 
+  try {
+    const interval = CronExpressionParser.parse(trimmed);
+    interval.next();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
   // Validate each field can be parsed
   const minuteVals = parseField(minuteRaw, 0, 59);
   const hourVals = parseField(hourRaw, 0, 23);
   const domVals = parseField(domRaw, 1, 31);
-  const monthVals = parseField(monthRaw, 1, 12);
-  const dowVals = parseField(dowRaw, 0, 7);
+  const normalizedMonth = normalizeFieldAliases(monthRaw, 3);
+  const normalizedDow = normalizeFieldAliases(dowRaw, 4);
+  const monthVals = parseField(normalizedMonth, 1, 12);
+  const dowVals = parseField(normalizedDow, 0, 7);
 
   if (!minuteVals) return { error: `Invalid minute field: "${minuteRaw}"` };
   if (!hourVals) return { error: `Invalid hour field: "${hourRaw}"` };
@@ -309,7 +337,7 @@ function translateCron(expr: string): TranslationResult | TranslationError {
   }
 
   return {
-    description: segments.join(', '),
+    description: cronstrue.toString(trimmed),
     breakdown,
   };
 }

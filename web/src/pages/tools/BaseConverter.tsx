@@ -45,12 +45,25 @@ const PRESETS = [
   { label: 'MAX_SAFE_INTEGER', value: '9007199254740991', base: 10 },
 ];
 
-function stripPrefix(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed.startsWith('0x') || trimmed.startsWith('0X')) return trimmed.slice(2);
-  if (trimmed.startsWith('0b') || trimmed.startsWith('0B')) return trimmed.slice(2);
-  if (trimmed.startsWith('0o') || trimmed.startsWith('0O')) return trimmed.slice(2);
-  return trimmed;
+const MAX_DIGITS = 10_000;
+
+function splitNumber(input: string, base: number): { sign: 1n | -1n; digits: string } {
+  let value = input.trim();
+  let sign: 1n | -1n = 1n;
+  if (value.startsWith('+') || value.startsWith('-')) {
+    sign = value[0] === '-' ? -1n : 1n;
+    value = value.slice(1);
+  }
+
+  const prefix = value.slice(0, 2).toLowerCase();
+  const expectedPrefix = BASES.find((option) => option.value === base)?.prefix;
+  if (['0x', '0b', '0o'].includes(prefix)) {
+    if (prefix !== expectedPrefix) {
+      throw new Error(`Prefix ${prefix} does not match base ${base}`);
+    }
+    value = value.slice(2);
+  }
+  return { sign, digits: value };
 }
 
 function parseBigInt(digits: string, base: number): bigint {
@@ -66,20 +79,29 @@ function parseBigInt(digits: string, base: number): bigint {
 
 function bigIntToBase(value: bigint, base: number): string {
   if (value === 0n) return '0';
+  const negative = value < 0n;
   const b = BigInt(base);
   const digits: string[] = [];
-  let v = value;
+  let v = negative ? -value : value;
   while (v > 0n) {
     const rem = Number(v % b);
     digits.push(rem < 10 ? String(rem) : String.fromCharCode(87 + rem));
     v = v / b;
   }
-  return digits.reverse().join('');
+  return `${negative ? '-' : ''}${digits.reverse().join('')}`;
 }
 
 function groupBinary(bin: string): string {
-  const padded = bin.length % 4 === 0 ? bin : bin.padStart(Math.ceil(bin.length / 4) * 4, '0');
-  return padded.match(/.{1,4}/g)?.join(' ') ?? bin;
+  const negative = bin.startsWith('-');
+  const digits = negative ? bin.slice(1) : bin;
+  const padded = digits.length % 4 === 0 ? digits : digits.padStart(Math.ceil(digits.length / 4) * 4, '0');
+  const grouped = padded.match(/.{1,4}/g)?.join(' ') ?? digits;
+  return `${negative ? '-' : ''}${grouped}`;
+}
+
+function addPrefix(value: string, prefix: string): string {
+  if (!prefix) return value;
+  return value.startsWith('-') ? `-${prefix}${value.slice(1)}` : `${prefix}${value}`;
 }
 
 export default function BaseConverter() {
@@ -93,13 +115,16 @@ export default function BaseConverter() {
   const currentBase = BASES.find((b) => b.value === fromBase)!;
 
   const result = useMemo(() => {
-    const raw = stripPrefix(input);
-    if (!raw) return null;
-    if (!currentBase.pattern.test(raw)) {
-      return { error: `Invalid ${currentBase.label.toLowerCase()} digit. Allowed: ${currentBase.hint}` };
-    }
     try {
-      const decimal = parseBigInt(raw, fromBase);
+      const { sign, digits } = splitNumber(input, fromBase);
+      if (!digits) return null;
+      if (digits.length > MAX_DIGITS) {
+        return { error: `Input is limited to ${MAX_DIGITS.toLocaleString()} digits` };
+      }
+      if (!currentBase.pattern.test(digits)) {
+        return { error: `Invalid ${currentBase.label.toLowerCase()} digit. Allowed: ${currentBase.hint}` };
+      }
+      const decimal = parseBigInt(digits, fromBase) * sign;
       return {
         value: decimal,
         binary: bigIntToBase(decimal, 2),
@@ -194,6 +219,7 @@ export default function BaseConverter() {
                   size="small"
                   checked={showPrefixes}
                   onChange={(e) => setShowPrefixes(e.target.checked)}
+                  slotProps={{ input: { 'aria-label': 'Show base prefixes' } }}
                 />
               }
               label={
@@ -208,6 +234,7 @@ export default function BaseConverter() {
                 size="small"
                 onClick={() => setInput('')}
                 disabled={!input}
+                aria-label="Clear input"
                 sx={{ color: 'text.secondary' }}
               >
                 <ClearIcon sx={{ fontSize: 16 }} />
@@ -227,6 +254,7 @@ export default function BaseConverter() {
                     setInput('');
                   }}
                   size="small"
+                  aria-label="Source base"
                 >
                   {BASES.map((b) => (
                     <MenuItem key={b.value} value={b.value}>
@@ -243,10 +271,12 @@ export default function BaseConverter() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={`Enter a ${currentBase.label.toLowerCase()} number (digits: ${currentBase.hint})`}
                   size="small"
+                  aria-label={`${currentBase.label} number`}
                   error={!!result && 'error' in result}
                   helperText={result && 'error' in result ? result.error : `Allowed digits: ${currentBase.hint}`}
                   slotProps={{
                     input: {
+                      inputProps: { maxLength: MAX_DIGITS + 3 },
                       sx: {
                         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                         fontSize: '0.875rem',
@@ -273,9 +303,8 @@ export default function BaseConverter() {
               }}
             >
               {outputs.map((out, i) => {
-                const copyValue = showPrefixes && out.prefix
-                  ? `${out.prefix}${out.display.replace(/\s/g, '')}`
-                  : out.display.replace(/\s/g, '');
+                const ungrouped = out.display.replace(/\s/g, '');
+                const copyValue = showPrefixes ? addPrefix(ungrouped, out.prefix) : ungrouped;
                 return (
                   <Box
                     key={out.label}
@@ -307,20 +336,17 @@ export default function BaseConverter() {
                         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                         fontSize: '0.8125rem',
                         flex: 1,
+                        minWidth: 0,
                         wordBreak: 'break-all',
                       }}
                     >
-                      {showPrefixes && out.prefix && (
-                        <Box component="span" sx={{ color: 'text.secondary' }}>
-                          {out.prefix}
-                        </Box>
-                      )}
-                      {out.display}
+                      {showPrefixes ? addPrefix(out.display, out.prefix) : out.display}
                     </Typography>
                     <Tooltip title="Copy">
                       <IconButton
                         size="small"
                         onClick={() => handleCopy(copyValue)}
+                        aria-label={`Copy ${out.label.toLowerCase()} value`}
                         sx={{ color: 'text.secondary' }}
                       >
                         <ContentCopyIcon sx={{ fontSize: 14 }} />
@@ -349,9 +375,9 @@ export default function BaseConverter() {
             </Typography>
             <Grid container spacing={2}>
               {[
-                { label: 'Bit Length', value: result.binary.length.toString() },
-                { label: 'Byte Length', value: Math.ceil(result.binary.length / 8).toString() },
-                { label: 'Hex Digits', value: result.hex.length.toString() },
+                { label: 'Magnitude Bits', value: result.binary.replace('-', '').length.toString() },
+                { label: 'Magnitude Bytes', value: Math.ceil(result.binary.replace('-', '').length / 8).toString() },
+                { label: 'Hex Digits', value: result.hex.replace('-', '').length.toString() },
               ].map((item) => (
                 <Grid key={item.label} size={{ xs: 4 }}>
                   <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary', fontWeight: 600 }}>

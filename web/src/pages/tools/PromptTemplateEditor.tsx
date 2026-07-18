@@ -58,17 +58,19 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function renderTemplate(content: string, vars: Variable[]): string {
-  let result = content;
+  const values = new Map<string, string>();
   for (const v of vars) {
-    result = result.replaceAll(`{{${v.name}}}`, v.value);
+    const name = v.name.trim();
+    if (name && !values.has(name)) values.set(name, v.value);
   }
-  return result;
+  return content.replace(/\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g, (placeholder, name: string) =>
+    values.has(name) ? values.get(name)! : placeholder,
+  );
 }
 
 function extractVariables(messages: Message[]): string[] {
   const all = messages.map((m) => m.content).join(' ');
-  const matches = all.match(/\{\{(\w+)\}\}/g) || [];
-  return [...new Set(matches.map((m) => m.slice(2, -2)))];
+  return [...new Set([...all.matchAll(/\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g)].map((match) => match[1]))];
 }
 
 export default function PromptTemplateEditor() {
@@ -79,7 +81,9 @@ export default function PromptTemplateEditor() {
   const isDark = theme.palette.mode === 'dark';
 
   const detectedVars = extractVariables(messages);
-  const missingVars = detectedVars.filter((v) => !variables.find((vr) => vr.name === v));
+  const normalizedNames = variables.map((variable) => variable.name.trim()).filter(Boolean);
+  const missingVars = detectedVars.filter((name) => !normalizedNames.includes(name));
+  const duplicateNames = [...new Set(normalizedNames.filter((name, index) => normalizedNames.indexOf(name) !== index))];
 
   const addMessage = (role: Message['role']) => {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role, content: '' }]);
@@ -171,8 +175,9 @@ export default function PromptTemplateEditor() {
                     }}
                   >
                     <select
+                      aria-label={`Role for message ${msg.id}`}
                       value={msg.role}
-                      onChange={(e) => updateMessage(msg.id, 'role', e.target.value)}
+                      onChange={(e) => updateMessage(msg.id, 'role', e.target.value as Message['role'])}
                       style={{
                         border: 'none',
                         background: 'transparent',
@@ -249,6 +254,11 @@ export default function PromptTemplateEditor() {
                   ))}
                 </Box>
               )}
+              {duplicateNames.length > 0 && (
+                <Typography color="error" sx={{ fontSize: '0.75rem' }}>
+                  Duplicate variable names use the first value: {duplicateNames.join(', ')}
+                </Typography>
+              )}
 
               {variables.map((v, i) => (
                 <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -257,6 +267,8 @@ export default function PromptTemplateEditor() {
                     value={v.name}
                     onChange={(e) => updateVariable(i, 'name', e.target.value)}
                     placeholder="name"
+                    error={!!v.name && !/^[A-Za-z_][\w.-]*$/.test(v.name.trim())}
+                    helperText={v.name && !/^[A-Za-z_][\w.-]*$/.test(v.name.trim()) ? 'Use letters, numbers, _, . or -' : undefined}
                     sx={{ width: 120 }}
                     slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.8125rem' } } }}
                   />

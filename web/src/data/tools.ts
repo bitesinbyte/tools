@@ -45,16 +45,17 @@ export type ToolCategory = 'All' | 'Data' | 'Text' | 'Encoding' | 'Web' | 'Dev' 
 
 export const CATEGORIES: ToolCategory[] = ['All', 'Data', 'Text', 'Encoding', 'Web', 'Dev', 'AI'];
 
-export interface ToolInfo {
+export interface ToolInfo<Path extends string = string> {
   title: string;
   description: string;
-  href: string;
+  href: Path;
   icon: SvgIconComponent;
   priority: number;
   category: ToolCategory;
+  keywords?: readonly string[];
 }
 
-export const tools: ToolInfo[] = ([
+const toolCatalog = [
   // ── Data ──
   {
     title: 'JSON Formatter & Validator',
@@ -216,7 +217,8 @@ export const tools: ToolInfo[] = ([
     href: '/css-minifier',
     icon: CssIcon,
     priority: 40,
-    category: 'Text',
+    category: 'Web',
+    keywords: ['stylesheet', 'compress', 'format'],
   },
   // ── Web ──
   {
@@ -388,5 +390,26 @@ export const tools: ToolInfo[] = ([
     icon: ApiIcon,
     priority: 41,
     category: 'AI',
+    keywords: ['swagger', 'model context protocol'],
   },
-] as const satisfies readonly ToolInfo[]).slice().sort((a, b) => b.priority - a.priority);
+] as const satisfies readonly ToolInfo[];
+
+export type ToolPath = (typeof toolCatalog)[number]['href'];
+
+export const tools: readonly ToolInfo<ToolPath>[] = [...toolCatalog].sort(
+  (a, b) => b.priority - a.priority,
+);
+
+export function matchesToolSearch(tool: ToolInfo, query: string) {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+
+  const searchableText = [
+    tool.title,
+    tool.description,
+    tool.category,
+    ...(tool.keywords ?? []),
+  ].join(' ').toLocaleLowerCase();
+
+  return terms.every((term) => searchableText.includes(term));
+}

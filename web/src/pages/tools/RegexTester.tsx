@@ -20,8 +20,10 @@ import { copyToClipboard } from '../../utils/file';
 interface MatchResult {
   match: string;
   index: number;
-  groups: string[];
+  groups: (string | undefined)[];
 }
+
+const MAX_MATCHES = 10_000;
 
 const COMMON_FLAGS = [
   { flag: 'g', label: 'Global' },
@@ -46,8 +48,8 @@ export default function RegexTester() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const { matches, error } = useMemo(() => {
-    if (!pattern.trim() || !testString) return { matches: [] as MatchResult[], error: '' };
+  const { matches, error, truncated } = useMemo(() => {
+    if (!pattern) return { matches: [] as MatchResult[], error: '', truncated: false };
     try {
       const regex = new RegExp(pattern, flags);
       const results: MatchResult[] = [];
@@ -59,7 +61,19 @@ export default function RegexTester() {
             index: m.index,
             groups: m.slice(1),
           });
-          if (!m[0]) regex.lastIndex++;
+          if (results.length > MAX_MATCHES) {
+            results.pop();
+            return { matches: results, error: '', truncated: true };
+          }
+          if (!m[0]) {
+            const next = regex.lastIndex;
+            const first = testString.charCodeAt(next);
+            const second = testString.charCodeAt(next + 1);
+            const isSurrogatePair = (flags.includes('u') || flags.includes('v'))
+              && first >= 0xd800 && first <= 0xdbff
+              && second >= 0xdc00 && second <= 0xdfff;
+            regex.lastIndex = next + (isSurrogatePair ? 2 : 1);
+          }
         }
       } else {
         const m = regex.exec(testString);
@@ -71,14 +85,14 @@ export default function RegexTester() {
           });
         }
       }
-      return { matches: results, error: '' };
+      return { matches: results, error: '', truncated: false };
     } catch (e) {
-      return { matches: [] as MatchResult[], error: (e as Error).message };
+      return { matches: [] as MatchResult[], error: (e as Error).message, truncated: false };
     }
   }, [pattern, flags, testString]);
 
   const toggleFlag = (flag: string) => {
-    setFlags((prev) => (prev.includes(flag) ? prev.replace(flag, '') : prev + flag));
+    setFlags((prev) => (prev.includes(flag) ? prev.split(flag).join('') : prev + flag));
   };
 
   const handleCopy = async (text: string) => {
@@ -115,7 +129,7 @@ export default function RegexTester() {
                 input: {
                   endAdornment: pattern ? (
                     <Tooltip title="Clear">
-                      <IconButton size="small" onClick={() => setPattern('')}>
+                      <IconButton size="small" onClick={() => setPattern('')} aria-label="Clear regular expression">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -201,12 +215,13 @@ export default function RegexTester() {
           >
             <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>Test String</Typography>
             <Tooltip title="Clear">
-              <IconButton size="small" onClick={() => setTestString('')} disabled={!testString} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={() => setTestString('')} disabled={!testString} sx={{ color: 'text.secondary' }} aria-label="Clear test string">
                 <ClearIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           </Box>
           <TextField
+            aria-label="Test string"
             multiline
             rows={6}
             fullWidth
@@ -229,9 +244,9 @@ export default function RegexTester() {
         </Box>
 
         {/* Match count */}
-        {pattern && testString && !error && (
+        {pattern && !error && (
           <Chip
-            label={`${matches.length} match${matches.length !== 1 ? 'es' : ''} found`}
+            label={`${matches.length}${truncated ? '+' : ''} match${matches.length !== 1 ? 'es' : ''} found${truncated ? ` (limited to ${MAX_MATCHES.toLocaleString()})` : ''}`}
             color={matches.length > 0 ? 'success' : 'default'}
             variant="outlined"
             size="small"
@@ -256,7 +271,7 @@ export default function RegexTester() {
             >
               {matches.map((m, i) => (
                 <Box
-                  key={i}
+                  key={`${m.index}-${i}`}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -278,17 +293,18 @@ export default function RegexTester() {
                       sx={{
                         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                         fontSize: '0.875rem',
+                        overflowWrap: 'anywhere',
                       }}
                     >
-                      {m.match}
+                      {m.match || '(empty match)'}
                     </Typography>
                     <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary' }}>
                       Index: {m.index}
-                      {m.groups.length > 0 && ` | Groups: ${m.groups.join(', ')}`}
+                      {m.groups.length > 0 && ` | Groups: ${m.groups.map((group) => group ?? '(unmatched)').join(', ')}`}
                     </Typography>
                   </Box>
                   <Tooltip title="Copy match">
-                    <IconButton size="small" onClick={() => handleCopy(m.match)} sx={{ color: 'text.secondary' }}>
+                    <IconButton size="small" onClick={() => handleCopy(m.match)} sx={{ color: 'text.secondary' }} aria-label={`Copy match ${i + 1}`}>
                       <ContentCopyIcon sx={{ fontSize: 14 }} />
                     </IconButton>
                   </Tooltip>
