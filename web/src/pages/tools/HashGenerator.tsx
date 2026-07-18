@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Typography,
   Stack,
@@ -15,7 +15,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
-import { copyToClipboard, readFileAsText } from '../../utils/file';
+import { copyToClipboard } from '../../utils/file';
 
 const ALGORITHMS = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'] as const;
 
@@ -26,8 +26,7 @@ async function computeHash(algorithm: string, data: ArrayBuffer): Promise<string
     .join('');
 }
 
-async function md5(text: string): Promise<string> {
-  // Simple MD5 implementation for browser
+function md5(data: Uint8Array): string {
   function md5cycle(x: number[], k: number[]) {
     let a = x[0], b = x[1], c = x[2], d = x[3];
     a = ff(a, b, c, d, k[0], 7, -680876936);
@@ -120,29 +119,31 @@ async function md5(text: string): Promise<string> {
     return (a + b) & 0xffffffff;
   }
 
-  function md5str(s: string): string {
-    const n = s.length;
+  function md5bytes(bytes: Uint8Array): string {
+    const n = bytes.length;
     const state = [1732584193, -271733879, -1732584194, 271733878];
     let i: number;
     for (i = 64; i <= n; i += 64) {
       const block: number[] = [];
       for (let j = i - 64; j < i; j += 4) {
         block.push(
-          s.charCodeAt(j) | (s.charCodeAt(j + 1) << 8) | (s.charCodeAt(j + 2) << 16) | (s.charCodeAt(j + 3) << 24)
+          bytes[j] | (bytes[j + 1] << 8) | (bytes[j + 2] << 16) | (bytes[j + 3] << 24)
         );
       }
       md5cycle(state, block);
     }
     const tail: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     for (let j = 0; j < n % 64; j++) {
-      tail[j >> 2] |= s.charCodeAt(i - 64 + j) << ((j % 4) << 3);
+      tail[j >> 2] |= bytes[i - 64 + j] << ((j % 4) << 3);
     }
     tail[(n % 64) >> 2] |= 0x80 << (((n % 64) % 4) << 3);
     if (n % 64 > 55) {
       md5cycle(state, tail);
       for (let j = 0; j < 16; j++) tail[j] = 0;
     }
-    tail[14] = n * 8;
+    const bitLength = n * 8;
+    tail[14] = bitLength >>> 0;
+    tail[15] = Math.floor(bitLength / 0x100000000);
     md5cycle(state, tail);
     const hex_chr = '0123456789abcdef';
     let result = '';
@@ -155,41 +156,60 @@ async function md5(text: string): Promise<string> {
     return result;
   }
 
-  return md5str(text);
+  return md5bytes(data);
 }
 
 export default function HashGenerator() {
   const [input, setInput] = useState('');
   const [hashes, setHashes] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState('');
+  const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const [hasTextInput, setHasTextInput] = useState(false);
+  const fileRequestRef = useRef(0);
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const computeAll = useCallback(async (text: string) => {
-    if (!text) {
-      setHashes({});
-      return;
-    }
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const results: Record<string, string> = {};
-    results['MD5'] = await md5(text);
-    for (const alg of ALGORITHMS) {
-      results[alg] = await computeHash(alg, data.buffer as ArrayBuffer);
-    }
-    setHashes(results);
-  }, []);
-
   useEffect(() => {
-    computeAll(input);
-  }, [input, computeAll]);
+    let cancelled = false;
+    const data = fileData ?? (hasTextInput ? new TextEncoder().encode(input) : null);
+    const run = async () => {
+      try {
+        if (data === null) {
+          setHashes({});
+          return;
+        }
+        setHashes({});
+        const results: Record<string, string> = { MD5: md5(data) };
+        const buffer = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
+          ? data.buffer as ArrayBuffer
+          : data.slice().buffer;
+        for (const alg of ALGORITHMS) {
+          results[alg] = await computeHash(alg, buffer);
+        }
+        if (!cancelled) setHashes(results);
+      } catch {
+        if (!cancelled) {
+          setHashes({});
+          enqueueSnackbar('Failed to compute hashes in this browser', { variant: 'error' });
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [input, fileData, hasTextInput, enqueueSnackbar]);
 
   const handlePaste = async () => {
+    const requestId = ++fileRequestRef.current;
     try {
       const text = await navigator.clipboard.readText();
+      if (requestId !== fileRequestRef.current) return;
       setInput(text);
       setFileName('');
+      setFileData(null);
+      setHasTextInput(true);
     } catch {
       enqueueSnackbar('Failed to paste', { variant: 'error' });
     }
@@ -198,10 +218,21 @@ export default function HashGenerator() {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await readFileAsText(file);
-    setInput(text);
-    setFileName(file.name);
-    e.target.value = '';
+    const requestId = ++fileRequestRef.current;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (requestId !== fileRequestRef.current) return;
+      setInput('');
+      setFileData(bytes);
+      setFileName(file.name);
+      setHasTextInput(false);
+    } catch {
+      if (requestId === fileRequestRef.current) {
+        enqueueSnackbar('Failed to read file', { variant: 'error' });
+      }
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleCopy = async (value: string) => {
@@ -249,21 +280,28 @@ export default function HashGenerator() {
               Input {fileName && `(${fileName})`}
             </Typography>
             <Tooltip title="Paste">
-              <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={handlePaste} aria-label="Paste text" sx={{ color: 'text.secondary' }}>
                 <ContentPasteIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Upload file">
-              <IconButton size="small" component="label" sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" component="label" aria-label="Upload file to hash" sx={{ color: 'text.secondary' }}>
                 <UploadFileIcon sx={{ fontSize: 16 }} />
-                <input type="file" hidden onChange={handleFile} />
+                <input type="file" hidden onChange={handleFile} aria-label="Upload file to hash" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Clear">
               <IconButton
                 size="small"
-                onClick={() => { setInput(''); setFileName(''); }}
-                disabled={!input}
+                onClick={() => {
+                  fileRequestRef.current += 1;
+                  setInput('');
+                  setFileName('');
+                  setFileData(null);
+                  setHasTextInput(false);
+                }}
+                disabled={!hasTextInput && !fileData}
+                aria-label="Clear input"
                 sx={{ color: 'text.secondary' }}
               >
                 <ClearIcon sx={{ fontSize: 16 }} />
@@ -275,9 +313,17 @@ export default function HashGenerator() {
             rows={6}
             fullWidth
             value={input}
-            onChange={(e) => { setInput(e.target.value); setFileName(''); }}
+            onChange={(e) => {
+              fileRequestRef.current += 1;
+              setInput(e.target.value);
+              setFileName('');
+              setFileData(null);
+              setHasTextInput(true);
+            }}
             placeholder="Type or paste text here, or upload a file..."
             variant="standard"
+            aria-label="Text to hash"
+            disabled={fileData !== null}
             slotProps={{
               input: {
                 disableUnderline: true,
@@ -345,6 +391,7 @@ export default function HashGenerator() {
                     <IconButton
                       size="small"
                       onClick={() => handleCopy(hashes[alg] ?? '')}
+                      aria-label={`Copy ${alg} hash`}
                       sx={{ color: 'text.secondary' }}
                     >
                       <ContentCopyIcon sx={{ fontSize: 14 }} />

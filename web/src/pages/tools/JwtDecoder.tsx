@@ -53,6 +53,7 @@ function isTimestamp(key: string, value: unknown): boolean {
 
 function formatTimestamp(ts: number): string {
   const date = new Date(ts * 1000);
+  if (!Number.isFinite(ts) || Number.isNaN(date.getTime())) return 'Invalid timestamp';
   return date.toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'long',
@@ -60,8 +61,25 @@ function formatTimestamp(ts: number): string {
 }
 
 function isExpired(payload: Record<string, unknown>): boolean | null {
-  if (typeof payload.exp !== 'number') return null;
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) return null;
   return Date.now() / 1000 > payload.exp;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function validateJwtShape(token: string): void {
+  const parts = token.split('.');
+  if (parts.length !== 3 || !parts[0] || !parts[1]) {
+    throw new Error('A JWT must contain three dot-separated parts');
+  }
+  if (!parts.every((part) => /^[A-Za-z0-9_-]*$/.test(part))) {
+    throw new Error('JWT parts must use Base64URL characters');
+  }
+  if (parts[0].length % 4 === 1 || parts[1].length % 4 === 1) {
+    throw new Error('JWT contains malformed Base64URL data');
+  }
 }
 
 interface ClaimRowProps {
@@ -170,7 +188,7 @@ function SectionCard({
       >
         <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>{title}</Typography>
         <Tooltip title="Copy as JSON">
-          <IconButton size="small" onClick={onCopy} sx={{ color: 'text.secondary' }}>
+          <IconButton size="small" onClick={onCopy} aria-label={`Copy ${title} as JSON`} sx={{ color: 'text.secondary' }}>
             <ContentCopyIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
@@ -196,13 +214,22 @@ export default function JwtDecoder() {
   const isDark = theme.palette.mode === 'dark';
 
   const decoded = useMemo(() => {
-    if (!token.trim()) return null;
+    const trimmedToken = token.trim();
+    if (!trimmedToken) return null;
     try {
-      const header = jwtDecode(token, { header: true }) as Record<string, unknown>;
-      const payload = jwtDecode(token) as Record<string, unknown>;
+      validateJwtShape(trimmedToken);
+      const header: unknown = jwtDecode(trimmedToken, { header: true });
+      const payload: unknown = jwtDecode(trimmedToken);
+      if (!isRecord(header) || !isRecord(payload)) {
+        throw new Error('JWT header and payload must be JSON objects');
+      }
       return { header, payload, error: null };
-    } catch {
-      return { header: null, payload: null, error: 'Invalid JWT token' };
+    } catch (error) {
+      return {
+        header: null,
+        payload: null,
+        error: error instanceof Error ? error.message : 'Invalid JWT token',
+      };
     }
   }, [token]);
 
@@ -222,7 +249,7 @@ export default function JwtDecoder() {
     enqueueSnackbar(ok ? 'Copied' : 'Failed to copy', { variant: ok ? 'success' : 'error' });
   };
 
-  const parts = token.split('.');
+  const parts = token.trim().split('.');
 
   return (
     <>
@@ -239,7 +266,7 @@ export default function JwtDecoder() {
         </Box>
 
         <Alert severity="info" variant="outlined">
-          All decoding happens in your browser. No data is ever sent to any server.
+          Decoding happens in your browser and does not verify the token signature.
         </Alert>
 
         {/* Token input */}
@@ -266,7 +293,7 @@ export default function JwtDecoder() {
             <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', flex: 1 }}>Encoded Token</Typography>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
               <Tooltip title="Paste from clipboard">
-                <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+                <IconButton size="small" onClick={handlePaste} aria-label="Paste JWT" sx={{ color: 'text.secondary' }}>
                   <ContentPasteIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
@@ -275,6 +302,7 @@ export default function JwtDecoder() {
                   size="small"
                   onClick={() => setToken('')}
                   disabled={!token}
+                  aria-label="Clear token"
                   sx={{ color: 'text.secondary' }}
                 >
                   <ClearIcon sx={{ fontSize: 16 }} />
@@ -290,6 +318,7 @@ export default function JwtDecoder() {
             onChange={(e) => setToken(e.target.value)}
             placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             variant="standard"
+            aria-label="Encoded JWT"
             slotProps={{
               input: {
                 disableUnderline: true,

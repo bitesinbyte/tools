@@ -18,6 +18,8 @@ import { useSnackbar } from 'notistack';
 import { copyToClipboard } from '../../utils/file';
 
 interface UrlParts {
+  href: string;
+  host: string;
   protocol: string;
   username: string;
   password: string;
@@ -34,6 +36,8 @@ function parseUrl(input: string): UrlParts | null {
   try {
     const url = new URL(input);
     return {
+      href: url.href,
+      host: url.host,
       protocol: url.protocol,
       username: url.username,
       password: url.password,
@@ -74,15 +78,17 @@ export default function UrlParser() {
 
   const parts = parsed
     ? [
+        { label: 'URL', value: parsed.href },
         { label: 'Origin', value: parsed.origin },
         { label: 'Protocol', value: parsed.protocol },
+        { label: 'Host', value: parsed.host },
         { label: 'Hostname', value: parsed.hostname },
-        { label: 'Port', value: parsed.port || '(default)' },
-        { label: 'Username', value: parsed.username || '(none)' },
-        { label: 'Password', value: parsed.password || '(none)' },
+        { label: 'Port', value: parsed.port, emptyLabel: '(default)' },
+        { label: 'Username', value: parsed.username, emptyLabel: '(none)' },
+        { label: 'Password', value: parsed.password, emptyLabel: '(none)' },
         { label: 'Pathname', value: parsed.pathname },
-        { label: 'Search', value: parsed.search || '(none)' },
-        { label: 'Hash', value: parsed.hash || '(none)' },
+        { label: 'Search', value: parsed.search, emptyLabel: '(none)' },
+        { label: 'Hash', value: parsed.hash, emptyLabel: '(none)' },
       ]
     : [];
 
@@ -162,7 +168,7 @@ export default function UrlParser() {
                     },
                   }}
                 >
-                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary', minWidth: 80 }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary',                   minWidth: { xs: 70, sm: 80 } }}>
                     {part.label}
                   </Typography>
                   <Typography
@@ -173,10 +179,10 @@ export default function UrlParser() {
                       wordBreak: 'break-all',
                     }}
                   >
-                    {part.value}
+                    {part.value || part.emptyLabel}
                   </Typography>
                   <Tooltip title="Copy">
-                    <IconButton size="small" onClick={() => handleCopy(part.value)} sx={{ color: 'text.secondary' }}>
+                    <IconButton size="small" onClick={() => handleCopy(part.value)} sx={{ color: 'text.secondary' }} aria-label={`Copy ${part.label}`}>
                       <ContentCopyIcon sx={{ fontSize: 14 }} />
                     </IconButton>
                   </Tooltip>
@@ -217,7 +223,7 @@ export default function UrlParser() {
                       minWidth: 100,
                     }}
                   >
-                    {key}
+                    {key || '(empty key)'}
                   </Typography>
                   <Typography
                     sx={{
@@ -227,10 +233,10 @@ export default function UrlParser() {
                       wordBreak: 'break-all',
                     }}
                   >
-                    {value}
+                    {value || '(empty value)'}
                   </Typography>
                   <Tooltip title="Copy value">
-                    <IconButton size="small" onClick={() => handleCopy(value)} sx={{ color: 'text.secondary' }}>
+                    <IconButton size="small" onClick={() => handleCopy(value)} sx={{ color: 'text.secondary' }} aria-label={`Copy value for ${key || 'empty key'}`}>
                       <ContentCopyIcon sx={{ fontSize: 14 }} />
                     </IconButton>
                   </Tooltip>

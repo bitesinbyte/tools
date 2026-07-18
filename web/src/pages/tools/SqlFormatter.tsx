@@ -49,7 +49,7 @@ export default function SqlFormatter() {
   const { formatted, error } = useMemo(() => {
     if (!input.trim()) return { formatted: '', error: '' };
     try {
-      const result = format(input, {
+      const result = format(input.replace(/^\uFEFF/, ''), {
         language: dialect,
         tabWidth: 2,
         keywordCase: 'upper',
@@ -72,6 +72,15 @@ export default function SqlFormatter() {
       setInput(text);
     } catch {
       enqueueSnackbar('Failed to paste', { variant: 'error' });
+    }
+  };
+
+  const handleDownload = () => {
+    try {
+      downloadFile('formatted.sql', formatted, 'text/plain');
+      enqueueSnackbar('File downloaded', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to download file', { variant: 'error' });
     }
   };
 
@@ -103,7 +112,7 @@ export default function SqlFormatter() {
             bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.01),
           }}
         >
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' } }}>
             <InputLabel>SQL Dialect</InputLabel>
             <Select
               value={dialect}
@@ -119,19 +128,29 @@ export default function SqlFormatter() {
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Paste">
-            <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Paste SQL" size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
               <ContentPasteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Clear">
-            <IconButton size="small" onClick={() => setInput('')} disabled={!input} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Clear SQL input" size="small" onClick={() => setInput('')} disabled={!input} sx={{ color: 'text.secondary' }}>
               <ClearIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
 
         {error && (
-          <Chip label={error} color="error" variant="outlined" size="small" sx={{ alignSelf: 'flex-start' }} />
+          <Chip
+            label={error}
+            color="error"
+            variant="outlined"
+            size="small"
+            sx={{
+              alignSelf: 'flex-start',
+              maxWidth: '100%',
+              '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
+            }}
+          />
         )}
 
         <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
@@ -153,14 +172,15 @@ export default function SqlFormatter() {
                 Formatted
               </Typography>
               <Tooltip title="Copy">
-                <IconButton size="small" onClick={handleCopy} disabled={!formatted} sx={{ color: 'text.secondary' }}>
+                <IconButton aria-label="Copy formatted SQL" size="small" onClick={handleCopy} disabled={!formatted} sx={{ color: 'text.secondary' }}>
                   <ContentCopyIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Download">
                 <IconButton
                   size="small"
-                  onClick={() => downloadFile('formatted.sql', formatted, 'text/plain')}
+                  aria-label="Download formatted SQL"
+                  onClick={handleDownload}
                   disabled={!formatted}
                   sx={{ color: 'text.secondary' }}
                 >

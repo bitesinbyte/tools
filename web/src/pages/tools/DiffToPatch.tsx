@@ -31,6 +31,9 @@ import { copyToClipboard, downloadFile, readFileAsText } from '../../utils/file'
 function computeLCS(a: string[], b: string[]): number[][] {
   const m = a.length;
   const n = b.length;
+  if (m * n > 4_000_000) {
+    throw new Error('Input is too large for an in-browser line diff (maximum 4,000,000 line comparisons)');
+  }
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -45,6 +48,22 @@ interface DiffOp {
   line: string;
   oldIdx?: number; // 0-based line index in original
   newIdx?: number; // 0-based line index in modified
+}
+
+interface TextFile {
+  lines: string[];
+  hasFinalNewline: boolean;
+  lineEnding: '\n' | '\r\n';
+}
+
+function splitText(text: string): TextFile {
+  const lineEnding = text.includes('\r\n') ? '\r\n' : '\n';
+  const normalized = text.replace(/\r\n/g, '\n');
+  if (!normalized) return { lines: [], hasFinalNewline: false, lineEnding };
+  const hasFinalNewline = normalized.endsWith('\n');
+  const lines = normalized.split('\n');
+  if (hasFinalNewline) lines.pop();
+  return { lines, hasFinalNewline, lineEnding };
 }
 
 function computeDiffOps(a: string[], b: string[]): DiffOp[] {
@@ -76,9 +95,26 @@ function generateUnifiedDiff(
   newFileName: string,
   contextLines = 3,
 ): string {
-  const aLines = original.split('\n');
-  const bLines = modified.split('\n');
+  const aFile = splitText(original);
+  const bFile = splitText(modified);
+  const aLines = aFile.lines;
+  const bLines = bFile.lines;
   const ops = computeDiffOps(aLines, bLines);
+
+  if (aFile.hasFinalNewline !== bFile.hasFinalNewline && aLines.length > 0 && bLines.length > 0) {
+    const finalSameIndex = ops.findIndex(
+      (op) => op.type === 'same' && op.oldIdx === aLines.length - 1 && op.newIdx === bLines.length - 1,
+    );
+    if (finalSameIndex >= 0) {
+      const finalOp = ops[finalSameIndex];
+      ops.splice(
+        finalSameIndex,
+        1,
+        { type: 'removed', line: finalOp.line, oldIdx: finalOp.oldIdx },
+        { type: 'added', line: finalOp.line, newIdx: finalOp.newIdx },
+      );
+    }
+  }
 
   // Find change regions and expand with context
   const changeIndices: number[] = [];
@@ -112,33 +148,20 @@ function generateUnifiedDiff(
   hunks.push({ start: hunkStart, end: hunkEnd });
 
   const lines: string[] = [];
-  lines.push(`--- a/${oldFileName}`);
-  lines.push(`+++ b/${newFileName}`);
+  const safeOldFileName = oldFileName.replace(/[\r\n\t]/g, ' ').trim() || 'file.txt';
+  const safeNewFileName = newFileName.replace(/[\r\n\t]/g, ' ').trim() || 'file.txt';
+  lines.push(`--- a/${safeOldFileName}`);
+  lines.push(`+++ b/${safeNewFileName}`);
 
   for (const hunk of hunks) {
-    // Compute old/new start line numbers and counts
-    let oldStart = 0;
-    let oldCount = 0;
-    let newStart = 0;
-    let newCount = 0;
-    let foundFirst = false;
-
-    for (let i = hunk.start; i <= hunk.end; i++) {
-      const op = ops[i];
-      if (!foundFirst) {
-        oldStart = (op.oldIdx ?? (op.type === 'added' ? (ops[i + 1]?.oldIdx ?? aLines.length) : 0)) + 1;
-        newStart = (op.newIdx ?? (op.type === 'removed' ? (ops[i + 1]?.newIdx ?? bLines.length) : 0)) + 1;
-        foundFirst = true;
-      }
-      if (op.type === 'same') {
-        oldCount++;
-        newCount++;
-      } else if (op.type === 'removed') {
-        oldCount++;
-      } else {
-        newCount++;
-      }
-    }
+    const before = ops.slice(0, hunk.start);
+    const hunkOps = ops.slice(hunk.start, hunk.end + 1);
+    const oldBefore = before.filter((op) => op.type !== 'added').length;
+    const newBefore = before.filter((op) => op.type !== 'removed').length;
+    const oldCount = hunkOps.filter((op) => op.type !== 'added').length;
+    const newCount = hunkOps.filter((op) => op.type !== 'removed').length;
+    const oldStart = oldCount === 0 ? oldBefore : oldBefore + 1;
+    const newStart = newCount === 0 ? newBefore : newBefore + 1;
 
     lines.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`);
 
@@ -146,10 +169,24 @@ function generateUnifiedDiff(
       const op = ops[i];
       if (op.type === 'same') {
         lines.push(` ${op.line}`);
+        if (
+          op.oldIdx === aLines.length - 1
+          && op.newIdx === bLines.length - 1
+          && !aFile.hasFinalNewline
+          && !bFile.hasFinalNewline
+        ) {
+          lines.push('\\ No newline at end of file');
+        }
       } else if (op.type === 'removed') {
         lines.push(`-${op.line}`);
+        if (op.oldIdx === aLines.length - 1 && !aFile.hasFinalNewline) {
+          lines.push('\\ No newline at end of file');
+        }
       } else {
         lines.push(`+${op.line}`);
+        if (op.newIdx === bLines.length - 1 && !bFile.hasFinalNewline) {
+          lines.push('\\ No newline at end of file');
+        }
       }
     }
   }
@@ -166,37 +203,59 @@ interface PatchHunk {
   oldCount: number;
   newStart: number;
   newCount: number;
-  lines: { prefix: string; content: string }[];
+  lines: { prefix: ' ' | '+' | '-'; content: string; noNewline: boolean }[];
 }
 
 function parsePatch(patch: string): PatchHunk[] {
   const hunks: PatchHunk[] = [];
-  const rawLines = patch.split('\n');
+  const rawLines = patch.replace(/\r\n/g, '\n').split('\n');
   let current: PatchHunk | null = null;
+  let seenHunk = false;
 
-  for (const line of rawLines) {
-    const hunkMatch = line.match(/^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/);
+  for (let index = 0; index < rawLines.length; index++) {
+    const line = rawLines[index];
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/);
     if (hunkMatch) {
       current = {
         oldStart: parseInt(hunkMatch[1], 10),
-        oldCount: hunkMatch[2] !== '' ? parseInt(hunkMatch[2], 10) : 1,
+        oldCount: hunkMatch[2] !== undefined ? parseInt(hunkMatch[2], 10) : 1,
         newStart: parseInt(hunkMatch[3], 10),
-        newCount: hunkMatch[4] !== '' ? parseInt(hunkMatch[4], 10) : 1,
+        newCount: hunkMatch[4] !== undefined ? parseInt(hunkMatch[4], 10) : 1,
         lines: [],
       };
       hunks.push(current);
+      seenHunk = true;
+      continue;
+    }
+    if (/^(---|\+\+\+)\s/.test(line)) {
+      if (seenHunk) throw new Error('Only single-file patches are supported');
+      continue;
+    }
+    if (line === '\\ No newline at end of file') {
+      const previous = current?.lines.at(-1);
+      if (!previous) throw new Error('Unexpected no-newline marker');
+      previous.noNewline = true;
       continue;
     }
     if (!current) continue;
-    if (line.startsWith('---') || line.startsWith('+++')) continue;
     if (line.startsWith('+') || line.startsWith('-') || line.startsWith(' ')) {
-      current.lines.push({ prefix: line[0], content: line.slice(1) });
-    } else if (line === '') {
-      // could be a context line that is an empty line (space-prefixed but trimmed)
-      current.lines.push({ prefix: ' ', content: '' });
+      current.lines.push({
+        prefix: line[0] as ' ' | '+' | '-',
+        content: line.slice(1),
+        noNewline: false,
+      });
+    } else if (line !== '' || index !== rawLines.length - 1) {
+      throw new Error(`Invalid patch line: ${line || '(empty line)'}`);
     }
   }
 
+  for (const hunk of hunks) {
+    const actualOldCount = hunk.lines.filter((line) => line.prefix !== '+').length;
+    const actualNewCount = hunk.lines.filter((line) => line.prefix !== '-').length;
+    if (actualOldCount !== hunk.oldCount || actualNewCount !== hunk.newCount) {
+      throw new Error('Patch hunk line counts do not match its header');
+    }
+  }
   return hunks;
 }
 
@@ -204,42 +263,56 @@ function applyPatch(original: string, patch: string): string {
   const hunks = parsePatch(patch);
   if (hunks.length === 0) throw new Error('No valid hunks found in patch');
 
-  const origLines = original.split('\n');
+  const originalFile = splitText(original);
+  const origLines = originalFile.lines;
   const result: string[] = [];
-  let origIdx = 0; // 0-based
+  let origIdx = 0;
+  let hasFinalNewline = originalFile.hasFinalNewline;
 
   for (const hunk of hunks) {
-    const hunkOrigStart = hunk.oldStart - 1; // 0-based
-    // Copy lines before this hunk
-    while (origIdx < hunkOrigStart && origIdx < origLines.length) {
+    const hunkOrigStart = hunk.oldCount === 0 ? hunk.oldStart : hunk.oldStart - 1;
+    if (hunkOrigStart < origIdx || hunkOrigStart < 0 || hunkOrigStart + hunk.oldCount > origLines.length) {
+      throw new Error('Patch hunk is out of range or overlaps a previous hunk');
+    }
+    while (origIdx < hunkOrigStart) {
       result.push(origLines[origIdx]);
       origIdx++;
     }
-    // Apply hunk
+    const hunkNewStart = hunk.newCount === 0 ? hunk.newStart : hunk.newStart - 1;
+    if (hunkNewStart !== result.length) {
+      throw new Error('Patch hunk new-file range does not match the generated output');
+    }
     for (const hl of hunk.lines) {
       if (hl.prefix === ' ') {
-        // Context line — pass through from original
-        if (origIdx < origLines.length) {
-          result.push(origLines[origIdx]);
-          origIdx++;
+        if (origLines[origIdx] !== hl.content) {
+          throw new Error(`Context mismatch at original line ${origIdx + 1}`);
         }
+        result.push(origLines[origIdx]);
+        origIdx++;
       } else if (hl.prefix === '-') {
-        // Remove line — skip in original
+        if (origLines[origIdx] !== hl.content) {
+          throw new Error(`Removal mismatch at original line ${origIdx + 1}`);
+        }
         origIdx++;
       } else if (hl.prefix === '+') {
-        // Add line
         result.push(hl.content);
       }
     }
+
+    if (hunkOrigStart + hunk.oldCount === origLines.length) {
+      const newSideLines = hunk.lines.filter((line) => line.prefix !== '-');
+      hasFinalNewline = newSideLines.length > 0
+        ? !newSideLines[newSideLines.length - 1].noNewline
+        : result.length > 0;
+    }
   }
 
-  // Copy remaining lines
   while (origIdx < origLines.length) {
     result.push(origLines[origIdx]);
     origIdx++;
   }
 
-  return result.join('\n');
+  return result.join(originalFile.lineEnding) + (hasFinalNewline && result.length > 0 ? originalFile.lineEnding : '');
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +335,7 @@ export default function DiffToPatch() {
   const [applyOriginal, setApplyOriginal] = useState('');
   const [patchInput, setPatchInput] = useState('');
   const [applyResult, setApplyResult] = useState('');
+  const [hasApplied, setHasApplied] = useState(false);
 
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
@@ -273,8 +347,13 @@ export default function DiffToPatch() {
       enqueueSnackbar('Enter original and modified text', { variant: 'warning' });
       return;
     }
-    const diff = generateUnifiedDiff(original, modified, oldFileName, newFileName);
-    setDiffOutput(diff || '(no differences)');
+    try {
+      const diff = generateUnifiedDiff(original, modified, oldFileName, newFileName);
+      setDiffOutput(diff || '(no differences)');
+    } catch (e) {
+      setDiffOutput('');
+      enqueueSnackbar(`Failed to generate diff: ${(e as Error).message}`, { variant: 'error' });
+    }
   }, [original, modified, oldFileName, newFileName, enqueueSnackbar]);
 
   // Apply patch
@@ -286,8 +365,11 @@ export default function DiffToPatch() {
     try {
       const result = applyPatch(applyOriginal, patchInput);
       setApplyResult(result);
+      setHasApplied(true);
       enqueueSnackbar('Patch applied successfully', { variant: 'success' });
     } catch (e) {
+      setApplyResult('');
+      setHasApplied(false);
       enqueueSnackbar(`Failed to apply patch: ${(e as Error).message}`, { variant: 'error' });
     }
   }, [applyOriginal, patchInput, enqueueSnackbar]);
@@ -308,6 +390,17 @@ export default function DiffToPatch() {
     return { added, removed, unchanged };
   };
   const stats = computeStats();
+
+  const updateGenerateInput = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setDiffOutput('');
+  };
+
+  const updateApplyInput = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setApplyResult('');
+    setHasApplied(false);
+  };
 
   // Helpers
   const handlePaste = async (setter: (v: string) => void) => {
@@ -426,6 +519,7 @@ export default function DiffToPatch() {
         placeholder={options?.placeholder ?? ''}
         variant="standard"
         slotProps={{
+          htmlInput: { 'aria-label': label },
           input: {
             readOnly: options?.readOnly,
             disableUnderline: true,
@@ -538,7 +632,10 @@ export default function DiffToPatch() {
                 size="small"
                 label="Old filename"
                 value={oldFileName}
-                onChange={(e) => setOldFileName(e.target.value)}
+                onChange={(e) => {
+                  setOldFileName(e.target.value);
+                  setDiffOutput('');
+                }}
                 sx={{ width: 140 }}
                 slotProps={{ input: { sx: { fontSize: '0.8125rem' } } }}
               />
@@ -546,7 +643,10 @@ export default function DiffToPatch() {
                 size="small"
                 label="New filename"
                 value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
+                onChange={(e) => {
+                  setNewFileName(e.target.value);
+                  setDiffOutput('');
+                }}
                 sx={{ width: 140 }}
                 slotProps={{ input: { sx: { fontSize: '0.8125rem' } } }}
               />
@@ -559,12 +659,12 @@ export default function DiffToPatch() {
           <>
             <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
               <Grid size={{ xs: 12, md: 6 }}>
-                {renderTextArea('Original', original, setOriginal, {
+                {renderTextArea('Original', original, updateGenerateInput(setOriginal), {
                   placeholder: 'Paste or upload original text...',
                 })}
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                {renderTextArea('Modified', modified, setModified, {
+                {renderTextArea('Modified', modified, updateGenerateInput(setModified), {
                   placeholder: 'Paste or upload modified text...',
                 })}
               </Grid>
@@ -644,12 +744,12 @@ export default function DiffToPatch() {
           <>
             <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
               <Grid size={{ xs: 12, md: 6 }}>
-                {renderTextArea('Original Text', applyOriginal, setApplyOriginal, {
+                {renderTextArea('Original Text', applyOriginal, updateApplyInput(setApplyOriginal), {
                   placeholder: 'Paste or upload the original text...',
                 })}
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                {renderTextArea('Patch Content', patchInput, setPatchInput, {
+                {renderTextArea('Patch Content', patchInput, updateApplyInput(setPatchInput), {
                   placeholder: 'Paste or upload a unified diff / .patch file...',
                 })}
               </Grid>
@@ -670,13 +770,13 @@ export default function DiffToPatch() {
                 size="small"
                 startIcon={<ContentCopyIcon />}
                 onClick={() => handleCopy(applyResult)}
-                disabled={!applyResult}
+                disabled={!hasApplied}
               >
                 Copy Result
               </Button>
             </Box>
 
-            {applyResult && (
+            {hasApplied && (
               <Box>
                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Patched Result

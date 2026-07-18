@@ -40,6 +40,7 @@ const STATUS_CODES: StatusCode[] = [
   { code: 101, text: 'Switching Protocols', description: 'The server is switching protocols as requested by the client via the Upgrade header.' },
   { code: 102, text: 'Processing', description: 'The server has received and is processing the request, but no response is available yet (WebDAV).' },
   { code: 103, text: 'Early Hints', description: 'Used to return some response headers before the final HTTP message, allowing the client to preload resources.' },
+  { code: 104, text: 'Upload Resumption Supported', description: 'Indicates temporary support for resumable uploads while the upload resumption specification is finalized.' },
 
   // 2xx Success
   { code: 200, text: 'OK', description: 'The request has succeeded. The meaning depends on the HTTP method used.' },
@@ -60,6 +61,7 @@ const STATUS_CODES: StatusCode[] = [
   { code: 303, text: 'See Other', description: 'The response to the request can be found under a different URL using a GET method.' },
   { code: 304, text: 'Not Modified', description: 'The resource has not been modified since the last request. The client can use the cached version.' },
   { code: 305, text: 'Use Proxy', description: 'The requested resource must be accessed through the proxy given by the Location header (deprecated).' },
+  { code: 306, text: 'Unused', description: 'No longer used. The code is reserved so that it cannot be assigned to another meaning.' },
   { code: 307, text: 'Temporary Redirect', description: 'The resource resides temporarily under a different URL. The request method must not change when reissuing the request.' },
   { code: 308, text: 'Permanent Redirect', description: 'The resource has been permanently moved to a new URL. The request method must not change when reissuing the request.' },
 
@@ -131,15 +133,13 @@ export default function HttpStatusCodes() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const terms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
     return STATUS_CODES.filter((sc) => {
-      if (activeCategory !== 'all' && getCategoryKey(sc.code) !== activeCategory) return false;
-      if (!q) return true;
-      return (
-        sc.code.toString().includes(q) ||
-        sc.text.toLowerCase().includes(q) ||
-        sc.description.toLowerCase().includes(q)
-      );
+      const category = getCategoryKey(sc.code);
+      if (activeCategory !== 'all' && category !== activeCategory) return false;
+      const categoryLabel = CATEGORIES.find((item) => item.key === category)?.label ?? '';
+      const searchable = `${sc.code} ${sc.text} ${sc.description} ${category} ${categoryLabel}`.toLowerCase();
+      return terms.every((term) => searchable.includes(term));
     });
   }, [search, activeCategory]);
 
@@ -179,12 +179,13 @@ export default function HttpStatusCodes() {
         <Box>
           <Typography variant="h5" sx={{ mb: 0.5 }}>HTTP Status Codes</Typography>
           <Typography variant="body2" color="text.secondary">
-            Complete reference of HTTP status codes. Search, filter by category, and click any code to copy it.
+            Complete reference of HTTP status codes. Search, filter by category, and copy any code.
           </Typography>
         </Box>
 
         {/* Search */}
         <TextField
+          label="Search HTTP status codes"
           fullWidth
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -270,7 +271,7 @@ export default function HttpStatusCodes() {
         )}
 
         {/* Results count */}
-        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }} aria-live="polite">
           {filtered.length} status code{filtered.length !== 1 ? 's' : ''} found
         </Typography>
 
@@ -308,12 +309,10 @@ export default function HttpStatusCodes() {
                         py: 1.5,
                         borderBottom: i < group.codes.length - 1 ? 1 : 0,
                         borderColor: 'divider',
-                        cursor: 'pointer',
                         '&:hover': {
                           bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.02),
                         },
                       }}
-                      onClick={() => handleCopy(sc.code, sc.text)}
                     >
                       {/* Status code */}
                       <Typography

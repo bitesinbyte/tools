@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Typography,
   Stack,
@@ -20,20 +20,31 @@ interface ColorValues {
   rgb: string;
   hsl: string;
   oklch: string;
+  css: string;
 }
 
-function hexToRgb(hex: string): [number, number, number] | null {
-  const m = hex.replace('#', '').match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-  if (!m) {
-    const m3 = hex.replace('#', '').match(/^([a-f\d])([a-f\d])([a-f\d])$/i);
-    if (!m3) return null;
-    return [parseInt(m3[1] + m3[1], 16), parseInt(m3[2] + m3[2], 16), parseInt(m3[3] + m3[3], 16)];
-  }
-  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+type Rgba = [number, number, number, number];
+
+const EMPTY_COLORS: ColorValues = { hex: '', rgb: '', hsl: '', oklch: '', css: '' };
+
+function hexToRgb(hex: string): Rgba | null {
+  const value = hex.replace(/^#/, '');
+  if (![3, 4, 6, 8].includes(value.length) || !/^[a-f\d]+$/i.test(value)) return null;
+  const expanded = value.length <= 4
+    ? value.split('').map((part) => part + part).join('')
+    : value;
+  return [
+    parseInt(expanded.slice(0, 2), 16),
+    parseInt(expanded.slice(2, 4), 16),
+    parseInt(expanded.slice(4, 6), 16),
+    expanded.length === 8 ? parseInt(expanded.slice(6, 8), 16) / 255 : 1,
+  ];
 }
 
-function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+function rgbToHex(r: number, g: number, b: number, alpha = 1): string {
+  const channels = [r, g, b].map((value) => Math.round(Math.max(0, Math.min(255, value))));
+  if (alpha < 1) channels.push(Math.round(Math.max(0, Math.min(1, alpha)) * 255));
+  return '#' + channels.map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
@@ -51,6 +62,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 }
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h = ((h % 360) + 360) % 360;
   h /= 360; s /= 100; l /= 100;
   if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
   const hue2rgb = (p: number, q: number, t: number) => {
@@ -69,7 +81,6 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   ];
 }
 
-// Simple OKLCH approximation via sRGB
 function rgbToOklch(r: number, g: number, b: number): [number, number, number] {
   // Convert to linear sRGB
   const toLinear = (c: number) => {
@@ -91,47 +102,131 @@ function rgbToOklch(r: number, g: number, b: number): [number, number, number] {
   return [parseFloat((L * 100).toFixed(2)), parseFloat(C.toFixed(4)), parseFloat(H.toFixed(1))];
 }
 
-function parseColor(input: string): [number, number, number] | null {
+function oklchToRgb(lightness: number, chroma: number, hue: number): [number, number, number] {
+  const angle = hue * Math.PI / 180;
+  const a = chroma * Math.cos(angle);
+  const b = chroma * Math.sin(angle);
+  const l1 = lightness + 0.3963377774 * a + 0.2158037573 * b;
+  const m1 = lightness - 0.1055613458 * a - 0.0638541728 * b;
+  const s1 = lightness - 0.0894841775 * a - 1.291485548 * b;
+  const l = l1 ** 3;
+  const m = m1 ** 3;
+  const s = s1 ** 3;
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+  return linear.map((channel) => {
+    const encoded = channel <= 0.0031308
+      ? 12.92 * channel
+      : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
+    return Math.round(Math.max(0, Math.min(1, encoded)) * 255);
+  }) as [number, number, number];
+}
+
+function parseAlpha(value: string | undefined): number | null {
+  if (value === undefined) return 1;
+  const parsed = value.endsWith('%') ? Number(value.slice(0, -1)) / 100 : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : null;
+}
+
+function parseHue(value: string): number | null {
+  const match = value.match(/^([+-]?(?:\d+\.?\d*|\.\d+))(deg|grad|rad|turn)?$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = match[2]?.toLowerCase() ?? 'deg';
+  if (unit === 'turn') return amount * 360;
+  if (unit === 'grad') return amount * 0.9;
+  if (unit === 'rad') return amount * 180 / Math.PI;
+  return amount;
+}
+
+function splitFunctionArgs(value: string): { channels: string[]; alpha?: string } {
+  const [channelPart, alphaPart, ...extra] = value.trim().split('/');
+  if (extra.length > 0) return { channels: [] };
+  return {
+    channels: channelPart.trim().split(/[,\s]+/).filter(Boolean),
+    alpha: alphaPart?.trim(),
+  };
+}
+
+function parseColor(input: string): Rgba | null {
   const trimmed = input.trim();
-  // Try hex
   const hex = hexToRgb(trimmed);
   if (hex) return hex;
-  // Try rgb(r, g, b)
-  const rgbMatch = trimmed.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-  if (rgbMatch) return [+rgbMatch[1], +rgbMatch[2], +rgbMatch[3]];
-  // Try hsl(h, s%, l%)
-  const hslMatch = trimmed.match(/^hsla?\(\s*(\d+)\s*,\s*(\d+)%?\s*,\s*(\d+)%?/i);
-  if (hslMatch) return hslToRgb(+hslMatch[1], +hslMatch[2], +hslMatch[3]);
-  return null;
+
+  const functionMatch = trimmed.match(/^(rgb|rgba|hsl|hsla|oklch)\((.*)\)$/i);
+  if (!functionMatch) return null;
+  const name = functionMatch[1].toLowerCase();
+  const args = splitFunctionArgs(functionMatch[2]);
+  let alphaText = args.alpha;
+  if ((name === 'rgba' || name === 'hsla') && !alphaText && args.channels.length === 4) {
+    alphaText = args.channels.pop();
+  }
+  const alpha = parseAlpha(alphaText);
+  if (alpha === null || args.channels.length !== 3) return null;
+
+  if (name === 'rgb' || name === 'rgba') {
+    const channels = args.channels.map((value) => {
+      const parsed = value.endsWith('%') ? Number(value.slice(0, -1)) * 2.55 : Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 255 ? parsed : NaN;
+    });
+    return channels.every(Number.isFinite) ? [channels[0], channels[1], channels[2], alpha] : null;
+  }
+
+  if (name === 'hsl' || name === 'hsla') {
+    const hue = parseHue(args.channels[0]);
+    if (hue === null || !args.channels[1].endsWith('%') || !args.channels[2].endsWith('%')) return null;
+    const saturation = Number(args.channels[1].slice(0, -1));
+    const lightness = Number(args.channels[2].slice(0, -1));
+    if (![saturation, lightness].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) return null;
+    return [...hslToRgb(hue, saturation, lightness), alpha];
+  }
+
+  const lightness = args.channels[0].endsWith('%')
+    ? Number(args.channels[0].slice(0, -1)) / 100
+    : Number(args.channels[0]);
+  const chroma = Number(args.channels[1]);
+  const hue = parseHue(args.channels[2]);
+  if (
+    !Number.isFinite(lightness) || lightness < 0 || lightness > 1
+    || !Number.isFinite(chroma) || chroma < 0
+    || hue === null
+  ) return null;
+  return [...oklchToRgb(lightness, chroma, hue), alpha];
+}
+
+function formatAlpha(alpha: number): string {
+  return Number(alpha.toFixed(3)).toString();
+}
+
+function convertColor(color: Rgba | null): ColorValues {
+  if (!color) return EMPTY_COLORS;
+  const [rawR, rawG, rawB, alpha] = color;
+  const [r, g, b] = [rawR, rawG, rawB].map((value) => Math.round(value));
+  const hex = rgbToHex(r, g, b, alpha);
+  const [h, s, l] = rgbToHsl(r, g, b);
+  const [oL, oC, oH] = rgbToOklch(r, g, b);
+  const alphaSuffix = alpha < 1 ? ` / ${formatAlpha(alpha)}` : '';
+  return {
+    hex: hex.toUpperCase(),
+    rgb: `rgb(${r} ${g} ${b}${alphaSuffix})`,
+    hsl: `hsl(${h} ${s}% ${l}%${alphaSuffix})`,
+    oklch: `oklch(${oL}% ${oC} ${oH}${alphaSuffix})`,
+    css: `rgb(${r} ${g} ${b} / ${formatAlpha(alpha)})`,
+  };
 }
 
 export default function ColorConverter() {
   const [input, setInput] = useState('#3b82f6');
-  const [colors, setColors] = useState<ColorValues>({ hex: '', rgb: '', hsl: '', oklch: '' });
-  const [pickerColor, setPickerColor] = useState('#3b82f6');
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const updateFromRgb = useCallback((r: number, g: number, b: number) => {
-    const hex = rgbToHex(r, g, b);
-    const [h, s, l] = rgbToHsl(r, g, b);
-    const [oL, oC, oH] = rgbToOklch(r, g, b);
-    setColors({
-      hex: hex.toUpperCase(),
-      rgb: `rgb(${r}, ${g}, ${b})`,
-      hsl: `hsl(${h}, ${s}%, ${l}%)`,
-      oklch: `oklch(${oL}% ${oC} ${oH})`,
-    });
-    setPickerColor(hex);
-  }, []);
-
-  useEffect(() => {
-    const rgb = parseColor(input);
-    if (rgb) {
-      updateFromRgb(...rgb);
-    }
-  }, [input, updateFromRgb]);
+  const parsedColor = useMemo(() => parseColor(input), [input]);
+  const colors = useMemo(() => convertColor(parsedColor), [parsedColor]);
+  const pickerColor = parsedColor ? rgbToHex(parsedColor[0], parsedColor[1], parsedColor[2]) : '#000000';
 
   const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const hex = e.target.value;
@@ -181,6 +276,7 @@ export default function ColorConverter() {
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                 <input
                   type="color"
+                  aria-label="Choose color"
                   value={pickerColor}
                   onChange={handlePickerChange}
                   style={{ width: '100%', height: 100, border: 'none', borderRadius: 8, cursor: 'pointer' }}
@@ -190,8 +286,10 @@ export default function ColorConverter() {
                 fullWidth
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="#3b82f6 or rgb(59,130,246)"
+                placeholder="#3b82f6 or rgb(59 130 246)"
                 size="small"
+                error={input.trim().length > 0 && !parsedColor}
+                helperText={input.trim().length > 0 && !parsedColor ? 'Enter a valid HEX, RGB, HSL, or OKLCH color' : 'Alpha values are supported'}
                 slotProps={{
                   input: {
                     sx: {
@@ -211,7 +309,7 @@ export default function ColorConverter() {
                 height: '100%',
                 minHeight: 200,
                 borderRadius: 2,
-                bgcolor: pickerColor,
+                bgcolor: parsedColor ? colors.css : 'action.disabledBackground',
                 border: 1,
                 borderColor: 'divider',
                 display: 'flex',
@@ -224,11 +322,11 @@ export default function ColorConverter() {
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                   fontSize: '0.875rem',
                   fontWeight: 700,
-                  color: '#fff',
+                  color: parsedColor ? '#fff' : 'text.secondary',
                   textShadow: '0 1px 3px rgba(0,0,0,0.6)',
                 }}
               >
-                {colors.hex}
+                {parsedColor ? colors.hex : 'Invalid color'}
               </Typography>
             </Box>
           </Grid>
@@ -272,6 +370,7 @@ export default function ColorConverter() {
                       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                       fontSize: '0.8125rem',
                       flex: 1,
+                      overflowWrap: 'anywhere',
                     }}
                   >
                     {fmt.value}
@@ -280,6 +379,8 @@ export default function ColorConverter() {
                     <IconButton
                       size="small"
                       onClick={() => handleCopy(fmt.value)}
+                      disabled={!fmt.value}
+                      aria-label={`Copy ${fmt.label} color`}
                       sx={{ color: 'text.secondary' }}
                     >
                       <ContentCopyIcon sx={{ fontSize: 14 }} />

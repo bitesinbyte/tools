@@ -11,6 +11,7 @@ import {
   Chip,
   alpha,
   useTheme,
+  MenuItem,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -18,10 +19,28 @@ import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
 import { copyToClipboard } from '../../utils/file';
 
+function getRelativeTime(date: Date, referenceTime: number): string {
+  const diff = referenceTime - date.getTime();
+  const abs = Math.abs(diff);
+  const future = diff < 0;
+  if (abs < 60000) return future ? 'in a few seconds' : 'a few seconds ago';
+  if (abs < 3600000) {
+    const mins = Math.floor(abs / 60000);
+    return future ? `in ${mins} minute${mins > 1 ? 's' : ''}` : `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (abs < 86400000) {
+    const hrs = Math.floor(abs / 3600000);
+    return future ? `in ${hrs} hour${hrs > 1 ? 's' : ''}` : `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
+  }
+  const days = Math.floor(abs / 86400000);
+  return future ? `in ${days} day${days > 1 ? 's' : ''}` : `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
 export default function TimestampConverter() {
   const [unixInput, setUnixInput] = useState('');
   const [isoInput, setIsoInput] = useState('');
-  const [now, setNow] = useState(Date.now());
+  const [unixUnit, setUnixUnit] = useState<'auto' | 'seconds' | 'milliseconds'>('auto');
+  const [now, setNow] = useState(() => Date.now());
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -40,20 +59,28 @@ export default function TimestampConverter() {
   // Unix -> dates
   const unixResult = useMemo(() => {
     if (!unixInput.trim()) return null;
-    const num = Number(unixInput.trim());
-    if (isNaN(num)) return { error: 'Invalid number' };
-    // Auto-detect seconds vs milliseconds
-    const ms = num > 1e12 ? num : num * 1000;
+    const value = unixInput.trim();
+    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)) return { error: 'Enter a decimal timestamp' };
+    const num = Number(value);
+    if (!Number.isFinite(num)) return { error: 'Timestamp is outside the supported numeric range' };
+    const detectedUnit = unixUnit === 'auto'
+      ? (Math.abs(num) >= 100_000_000_000 ? 'milliseconds' : 'seconds')
+      : unixUnit;
+    const ms = detectedUnit === 'milliseconds' ? num : num * 1000;
+    if (!Number.isFinite(ms) || Math.abs(ms) > 8_640_000_000_000_000) {
+      return { error: 'Timestamp is outside the JavaScript Date range' };
+    }
     const date = new Date(ms);
     if (isNaN(date.getTime())) return { error: 'Invalid timestamp' };
     return {
       date,
+      unit: detectedUnit,
       iso: date.toISOString(),
       utc: date.toUTCString(),
       local: date.toLocaleString(),
-      relative: getRelativeTime(date),
+      relative: getRelativeTime(date, now),
     };
-  }, [unixInput]);
+  }, [unixInput, unixUnit, now]);
 
   // ISO -> unix
   const isoResult = useMemo(() => {
@@ -67,26 +94,9 @@ export default function TimestampConverter() {
       iso: date.toISOString(),
       utc: date.toUTCString(),
       local: date.toLocaleString(),
-      relative: getRelativeTime(date),
+      relative: getRelativeTime(date, now),
     };
-  }, [isoInput]);
-
-  function getRelativeTime(date: Date): string {
-    const diff = Date.now() - date.getTime();
-    const abs = Math.abs(diff);
-    const future = diff < 0;
-    if (abs < 60000) return future ? 'in a few seconds' : 'a few seconds ago';
-    if (abs < 3600000) {
-      const mins = Math.floor(abs / 60000);
-      return future ? `in ${mins} minute${mins > 1 ? 's' : ''}` : `${mins} minute${mins > 1 ? 's' : ''} ago`;
-    }
-    if (abs < 86400000) {
-      const hrs = Math.floor(abs / 3600000);
-      return future ? `in ${hrs} hour${hrs > 1 ? 's' : ''}` : `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
-    }
-    const days = Math.floor(abs / 86400000);
-    return future ? `in ${days} day${days > 1 ? 's' : ''}` : `${days} day${days > 1 ? 's' : ''} ago`;
-  }
+  }, [isoInput, now]);
 
   const currentDate = new Date(now);
 
@@ -175,24 +185,39 @@ export default function TimestampConverter() {
                 </Button>
               </Box>
               <Box sx={{ p: 2 }}>
-                <TextField
-                  label="Unix Timestamp"
-                  fullWidth
-                  value={unixInput}
-                  onChange={(e) => setUnixInput(e.target.value)}
-                  placeholder="e.g., 1700000000 or 1700000000000"
-                  size="small"
-                  error={!!unixResult && 'error' in unixResult}
-                  helperText={unixResult && 'error' in unixResult ? unixResult.error : 'Seconds or milliseconds'}
-                  slotProps={{
-                    input: {
-                      sx: {
-                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                        fontSize: '0.875rem',
-                      },
-                    },
-                  }}
-                />
+                <Grid container spacing={1}>
+                  <Grid size={{ xs: 12, sm: 8 }}>
+                    <TextField
+                      label="Unix Timestamp"
+                      fullWidth
+                      value={unixInput}
+                      onChange={(e) => setUnixInput(e.target.value)}
+                      placeholder="e.g., 1700000000 or 1700000000000"
+                      size="small"
+                      error={!!unixResult && 'error' in unixResult}
+                      helperText={unixResult && 'error' in unixResult ? unixResult.error : (
+                        unixResult && !('error' in unixResult) && unixUnit === 'auto'
+                          ? `Detected ${unixResult.unit}`
+                          : 'Seconds or milliseconds'
+                      )}
+                      slotProps={{
+                        input: {
+                          sx: {
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            fontSize: '0.875rem',
+                          },
+                        },
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField select label="Unit" size="small" fullWidth value={unixUnit} onChange={(e) => setUnixUnit(e.target.value as typeof unixUnit)}>
+                      <MenuItem value="auto">Auto</MenuItem>
+                      <MenuItem value="seconds">Seconds</MenuItem>
+                      <MenuItem value="milliseconds">Milliseconds</MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
                 {unixResult && !('error' in unixResult) && (
                   <Stack spacing={1} sx={{ mt: 2 }}>
                     {[

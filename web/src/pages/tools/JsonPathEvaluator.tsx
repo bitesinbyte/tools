@@ -30,181 +30,239 @@ interface PathResult {
   value: unknown;
 }
 
-/** Tokenise a JSONPath expression into segments. */
-function tokenize(expr: string): string[] {
-  const tokens: string[] = [];
-  let i = 0;
-  if (expr[i] !== '$') return tokens;
-  tokens.push('$');
-  i++;
+type Selector =
+  | { type: 'child'; key: string; wildcard: boolean }
+  | { type: 'index'; index: number }
+  | { type: 'slice'; start?: number; end?: number; step: number };
+
+type PathToken = Selector | { type: 'recursive'; key: string; wildcard: boolean };
+
+function parseQuotedKey(value: string): string {
+  if (value.startsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      // Use the common error below.
+    }
+    throw new Error('Invalid quoted property in JSONPath');
+  }
+  let result = '';
+  for (let i = 1; i < value.length - 1; i++) {
+    if (value[i] !== '\\') {
+      if (value[i] === "'" || value.charCodeAt(i) < 0x20) {
+        throw new Error('Invalid quoted property in JSONPath');
+      }
+      result += value[i];
+      continue;
+    }
+    i++;
+    if (i >= value.length - 1) throw new Error('Invalid escape in quoted property');
+    const escaped = value[i];
+    const escapes: Record<string, string> = {
+      "'": "'",
+      '\\': '\\',
+      '/': '/',
+      b: '\b',
+      f: '\f',
+      n: '\n',
+      r: '\r',
+      t: '\t',
+    };
+    if (escaped === 'u') {
+      const hex = value.slice(i + 1, i + 5);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) throw new Error('Invalid Unicode escape in quoted property');
+      result += String.fromCharCode(parseInt(hex, 16));
+      i += 4;
+    } else if (Object.prototype.hasOwnProperty.call(escapes, escaped)) {
+      result += escapes[escaped];
+    } else {
+      throw new Error('Invalid escape in quoted property');
+    }
+  }
+  return result;
+}
+
+function parseBracketSelector(inner: string): Selector {
+  const value = inner.trim();
+  if (value === '*') return { type: 'child', key: '*', wildcard: true };
+  if (
+    value.length >= 2
+    && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    return { type: 'child', key: parseQuotedKey(value), wildcard: false };
+  }
+  if (/^-?\d+$/.test(value)) {
+    return { type: 'index', index: Number(value) };
+  }
+  const slice = value.match(/^(-?\d*)\s*:\s*(-?\d*)(?:\s*:\s*(-?\d+))?$/);
+  if (slice) {
+    const step = slice[3] === undefined ? 1 : Number(slice[3]);
+    if (step === 0) throw new Error('JSONPath slice step cannot be zero');
+    return {
+      type: 'slice',
+      start: slice[1] === '' ? undefined : Number(slice[1]),
+      end: slice[2] === '' ? undefined : Number(slice[2]),
+      step,
+    };
+  }
+  throw new Error('Unsupported or malformed bracket selector');
+}
+
+function parseJsonPath(expr: string): PathToken[] {
+  if (!expr.startsWith('$')) throw new Error('JSONPath must start with $');
+  const tokens: PathToken[] = [];
+  let i = 1;
 
   while (i < expr.length) {
-    // Recursive descent
-    if (expr[i] === '.' && expr[i + 1] === '.') {
-      tokens.push('..');
-      i += 2;
-      continue;
-    }
-    // Dot child
+    let recursive = false;
     if (expr[i] === '.') {
-      i++;
-      let name = '';
-      while (i < expr.length && expr[i] !== '.' && expr[i] !== '[') {
-        name += expr[i];
-        i++;
+      recursive = expr[i + 1] === '.';
+      i += recursive ? 2 : 1;
+      if (i >= expr.length) throw new Error('JSONPath is missing a selector after "."');
+      if (expr[i] !== '[') {
+        const start = i;
+        while (i < expr.length && expr[i] !== '.' && expr[i] !== '[') i++;
+        const key = expr.slice(start, i);
+        if (!key || /\s/.test(key)) throw new Error('Invalid dot-notation property');
+        tokens.push(
+          recursive
+            ? { type: 'recursive', key, wildcard: key === '*' }
+            : { type: 'child', key, wildcard: key === '*' },
+        );
+        continue;
       }
-      if (name) tokens.push(name);
-      continue;
+    } else if (expr[i] !== '[') {
+      throw new Error(`Unexpected character "${expr[i]}" at position ${i + 1}`);
     }
-    // Bracket notation
-    if (expr[i] === '[') {
-      i++;
-      let inner = '';
-      let depth = 1;
-      while (i < expr.length && depth > 0) {
-        if (expr[i] === '[') depth++;
-        else if (expr[i] === ']') { depth--; if (depth === 0) break; }
-        inner += expr[i];
-        i++;
-      }
-      i++; // skip closing ]
-      tokens.push(`[${inner}]`);
-      continue;
-    }
-    // Skip unexpected characters
+
+    const bracketStart = i;
     i++;
+    let quote = '';
+    let escaped = false;
+    while (i < expr.length) {
+      const character = expr[i];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") {
+        quote = character;
+      } else if (character === ']') {
+        break;
+      }
+      i++;
+    }
+    if (i >= expr.length || expr[i] !== ']') {
+      throw new Error(`Unclosed bracket starting at position ${bracketStart + 1}`);
+    }
+    const selector = parseBracketSelector(expr.slice(bracketStart + 1, i));
+    i++;
+    if (recursive) {
+      if (selector.type !== 'child') throw new Error('Recursive descent requires a property or wildcard');
+      tokens.push({ type: 'recursive', key: selector.key, wildcard: selector.wildcard });
+    } else {
+      tokens.push(selector);
+    }
   }
   return tokens;
 }
 
-/** Resolve a single token against a value, returning matched (path, value) pairs. */
-function resolveToken(
-  token: string,
-  current: unknown,
-  currentPath: string,
-): PathResult[] {
-  if (current === null || current === undefined || typeof current !== 'object') return [];
-
-  // Wildcard [*]
-  if (token === '[*]') {
-    if (Array.isArray(current)) {
-      return current.map((v, idx) => ({ path: `${currentPath}[${idx}]`, value: v }));
-    }
-    return Object.keys(current).map((key) => ({
-      path: `${currentPath}['${key}']`,
-      value: (current as Record<string, unknown>)[key],
-    }));
-  }
-
-  // Array slice [start:end]
-  const sliceMatch = token.match(/^\[(-?\d*):(-?\d*)\]$/);
-  if (sliceMatch && Array.isArray(current)) {
-    const len = current.length;
-    let start = sliceMatch[1] === '' ? 0 : parseInt(sliceMatch[1], 10);
-    let end = sliceMatch[2] === '' ? len : parseInt(sliceMatch[2], 10);
-    if (start < 0) start = Math.max(0, len + start);
-    if (end < 0) end = Math.max(0, len + end);
-    start = Math.max(0, Math.min(start, len));
-    end = Math.max(0, Math.min(end, len));
-    const results: PathResult[] = [];
-    for (let idx = start; idx < end; idx++) {
-      results.push({ path: `${currentPath}[${idx}]`, value: current[idx] });
-    }
-    return results;
-  }
-
-  // Numeric index [n]
-  const indexMatch = token.match(/^\[(\d+)\]$/);
-  if (indexMatch && Array.isArray(current)) {
-    const idx = parseInt(indexMatch[1], 10);
-    if (idx < current.length) {
-      return [{ path: `${currentPath}[${idx}]`, value: current[idx] }];
-    }
-    return [];
-  }
-
-  // Bracket property access ['prop'] or ["prop"]
-  const propMatch = token.match(/^\[['"](.+)['"]\]$/);
-  if (propMatch) {
-    const key = propMatch[1];
-    if (Object.prototype.hasOwnProperty.call(current, key)) {
-      return [{ path: `${currentPath}['${key}']`, value: (current as Record<string, unknown>)[key] }];
-    }
-    return [];
-  }
-
-  // Dot-notation property (plain name)
-  if (!token.startsWith('[') && !token.startsWith('.')) {
-    if (Object.prototype.hasOwnProperty.call(current, token)) {
-      return [{ path: `${currentPath}.${token}`, value: (current as Record<string, unknown>)[token] }];
-    }
-    return [];
-  }
-
-  return [];
+function propertyPath(path: string, key: string): string {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)
+    ? `${path}.${key}`
+    : `${path}[${JSON.stringify(key)}]`;
 }
 
-/** Recursively gather all descendant (path, value) pairs. */
-function descendants(value: unknown, path: string): PathResult[] {
-  const results: PathResult[] = [{ path, value }];
-  if (value !== null && value !== undefined && typeof value === 'object') {
-    if (Array.isArray(value)) {
-      value.forEach((v, idx) => {
-        results.push(...descendants(v, `${path}[${idx}]`));
-      });
+function resolveSelector(selector: Selector, current: unknown, currentPath: string): PathResult[] {
+  if (selector.type === 'index') {
+    if (!Array.isArray(current)) return [];
+    const index = selector.index < 0 ? current.length + selector.index : selector.index;
+    return index >= 0 && index < current.length
+      ? [{ path: `${currentPath}[${index}]`, value: current[index] }]
+      : [];
+  }
+
+  if (selector.type === 'slice') {
+    if (!Array.isArray(current)) return [];
+    const length = current.length;
+    const { step } = selector;
+    let start = selector.start ?? (step > 0 ? 0 : length - 1);
+    let end = selector.end ?? (step > 0 ? length : -1);
+    if (selector.start !== undefined && start < 0) start += length;
+    if (selector.end !== undefined && end < 0) end += length;
+    if (step > 0) {
+      start = Math.max(0, Math.min(start, length));
+      end = Math.max(0, Math.min(end, length));
     } else {
-      Object.keys(value).forEach((key) => {
-        results.push(...descendants((value as Record<string, unknown>)[key], `${path}['${key}']`));
-      });
+      start = Math.max(-1, Math.min(start, length - 1));
+      end = Math.max(-1, Math.min(end, length - 1));
     }
+    const matches: PathResult[] = [];
+    for (let index = start; step > 0 ? index < end : index > end; index += step) {
+      matches.push({ path: `${currentPath}[${index}]`, value: current[index] });
+    }
+    return matches;
+  }
+
+  if (current === null || typeof current !== 'object') return [];
+  if (selector.wildcard) {
+    if (Array.isArray(current)) {
+      return current.map((value, index) => ({ path: `${currentPath}[${index}]`, value }));
+    }
+    return Object.entries(current).map(([key, value]) => ({
+      path: propertyPath(currentPath, key),
+      value,
+    }));
+  }
+  if (!Object.prototype.hasOwnProperty.call(current, selector.key)) return [];
+  return [{
+    path: propertyPath(currentPath, selector.key),
+    value: (current as Record<string, unknown>)[selector.key],
+  }];
+}
+
+function descendants(value: unknown, path: string): PathResult[] {
+  const results: PathResult[] = [];
+  const pending: PathResult[] = [{ path, value }];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    results.push(current);
+    if (current.value === null || typeof current.value !== 'object') continue;
+    const children = Array.isArray(current.value)
+      ? current.value.map((child, index) => ({ path: `${current.path}[${index}]`, value: child }))
+      : Object.entries(current.value).map(([key, child]) => ({
+          path: propertyPath(current.path, key),
+          value: child,
+        }));
+    pending.push(...children.reverse());
   }
   return results;
 }
 
-/** Evaluate a JSONPath expression against parsed JSON data. */
 function evaluateJsonPath(data: unknown, expr: string): PathResult[] {
-  const tokens = tokenize(expr.trim());
-  if (tokens.length === 0 || tokens[0] !== '$') {
-    throw new Error('JSONPath must start with $');
-  }
-
+  const tokens = parseJsonPath(expr.trim());
   let results: PathResult[] = [{ path: '$', value: data }];
 
-  let i = 1;
-  while (i < tokens.length) {
-    const token = tokens[i];
-
-    if (token === '..') {
-      // Recursive descent: gather all descendants, then apply the next token
-      const allDescendants: PathResult[] = [];
-      for (const r of results) {
-        allDescendants.push(...descendants(r.value, r.path));
-      }
-
-      i++;
-      if (i < tokens.length) {
-        const nextToken = tokens[i];
-        const nextResults: PathResult[] = [];
-        for (const d of allDescendants) {
-          // Try to match the next token as a property name directly on each descendant
-          nextResults.push(...resolveToken(nextToken, d.value, d.path));
+  for (const token of tokens) {
+    const nextResults: PathResult[] = [];
+    if (token.type === 'recursive') {
+      for (const result of results) {
+        for (const descendant of descendants(result.value, result.path)) {
+          nextResults.push(...resolveSelector(
+            { type: 'child', key: token.key, wildcard: token.wildcard },
+            descendant.value,
+            descendant.path,
+          ));
         }
-        results = nextResults;
-      } else {
-        // .. at end means all descendants
-        results = allDescendants;
       }
     } else {
-      const nextResults: PathResult[] = [];
-      for (const r of results) {
-        nextResults.push(...resolveToken(token, r.value, r.path));
+      for (const result of results) {
+        nextResults.push(...resolveSelector(token, result.value, result.path));
       }
-      results = nextResults;
     }
-
-    i++;
+    results = nextResults;
   }
-
   return results;
 }
 
@@ -218,7 +276,7 @@ const PRESETS = [
   { label: '$.store.book[0].title', expr: '$.store.book[0].title' },
   { label: '$.store.book[0:2]', expr: '$.store.book[0:2]' },
   { label: '$..book[*]', expr: '$..book[*]' },
-  { label: '$.store.*', expr: '$.store[*]' },
+  { label: '$.store.*', expr: '$.store.*' },
 ];
 
 const SAMPLE_JSON = JSON.stringify(
@@ -254,7 +312,7 @@ export default function JsonPathEvaluator() {
 
     let data: unknown;
     try {
-      data = JSON.parse(jsonInput);
+      data = JSON.parse(jsonInput.replace(/^\uFEFF/, ''));
     } catch (e) {
       return { results: [] as PathResult[], parseError: (e as Error).message, pathError: '' };
     }
@@ -301,10 +359,7 @@ export default function JsonPathEvaluator() {
   };
 
   const formatValue = (v: unknown): string => {
-    if (typeof v === 'string') return `"${v}"`;
-    if (v === null) return 'null';
-    if (typeof v === 'object') return JSON.stringify(v);
-    return String(v);
+    return JSON.stringify(v);
   };
 
   return (
@@ -343,24 +398,25 @@ export default function JsonPathEvaluator() {
           >
             <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>JSON Input</Typography>
             <Tooltip title="Paste from clipboard">
-              <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+              <IconButton aria-label="Paste JSON from clipboard" size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
                 <ContentPasteIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Upload JSON file">
-              <IconButton size="small" component="label" sx={{ color: 'text.secondary' }}>
+              <IconButton aria-label="Upload JSON file" size="small" component="label" sx={{ color: 'text.secondary' }}>
                 <FileUploadIcon sx={{ fontSize: 16 }} />
                 <input type="file" hidden accept=".json,.txt" onChange={handleUpload} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Clear">
-              <IconButton size="small" onClick={() => setJsonInput('')} disabled={!jsonInput} sx={{ color: 'text.secondary' }}>
+              <IconButton aria-label="Clear JSON input" size="small" onClick={() => setJsonInput('')} disabled={!jsonInput} sx={{ color: 'text.secondary' }}>
                 <ClearIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           </Box>
           <Box
             component="textarea"
+            aria-label="JSON input"
             value={jsonInput}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setJsonInput(e.target.value)}
             placeholder="Paste or type JSON here..."
@@ -392,6 +448,7 @@ export default function JsonPathEvaluator() {
                 size="small"
                 color="error"
                 variant="outlined"
+                sx={{ maxWidth: '100%', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
               />
             ) : (
               <Chip
@@ -418,7 +475,7 @@ export default function JsonPathEvaluator() {
             input: {
               endAdornment: pathExpr ? (
                 <Tooltip title="Clear">
-                  <IconButton size="small" onClick={() => setPathExpr('')}>
+                  <IconButton aria-label="Clear JSONPath expression" size="small" onClick={() => setPathExpr('')}>
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -543,6 +600,7 @@ export default function JsonPathEvaluator() {
                   <Tooltip title="Copy value">
                     <IconButton
                       size="small"
+                      aria-label={`Copy result ${i + 1}`}
                       onClick={async () => {
                         const ok = await copyToClipboard(formatValue(r.value));
                         enqueueSnackbar(ok ? 'Copied' : 'Failed to copy', { variant: ok ? 'success' : 'error' });

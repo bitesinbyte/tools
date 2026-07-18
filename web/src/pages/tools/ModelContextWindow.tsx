@@ -47,16 +47,16 @@ const MODELS: ModelEntry[] = [
   { name: 'Gemini 1.5 Pro', provider: 'Google', contextWindow: 2000000, maxOutput: 8192, knowledgeCutoff: 'Nov 2023' },
   { name: 'Gemini 1.5 Flash', provider: 'Google', contextWindow: 1000000, maxOutput: 8192, knowledgeCutoff: 'Nov 2023' },
   // Meta
-  { name: 'Llama 3.1 405B', provider: 'Meta', contextWindow: 128000, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
-  { name: 'Llama 3.1 70B', provider: 'Meta', contextWindow: 128000, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
-  { name: 'Llama 3.3 70B', provider: 'Meta', contextWindow: 128000, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
+  { name: 'Llama 3.1 405B', provider: 'Meta', contextWindow: 131072, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
+  { name: 'Llama 3.1 70B', provider: 'Meta', contextWindow: 131072, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
+  { name: 'Llama 3.3 70B', provider: 'Meta', contextWindow: 131072, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
   // Mistral
   { name: 'Mistral Large', provider: 'Mistral', contextWindow: 128000, maxOutput: 4096, knowledgeCutoff: 'Nov 2024' },
   { name: 'Mistral Medium', provider: 'Mistral', contextWindow: 32000, maxOutput: 4096, knowledgeCutoff: 'Dec 2023' },
   { name: 'Mixtral 8x22B', provider: 'Mistral', contextWindow: 64000, maxOutput: 4096, knowledgeCutoff: 'Apr 2024' },
   // DeepSeek
-  { name: 'DeepSeek V3', provider: 'DeepSeek', contextWindow: 128000, maxOutput: 8192, knowledgeCutoff: 'Dec 2024' },
-  { name: 'DeepSeek R1', provider: 'DeepSeek', contextWindow: 128000, maxOutput: 8192, knowledgeCutoff: 'Dec 2024' },
+  { name: 'DeepSeek V3', provider: 'DeepSeek', contextWindow: 131072, maxOutput: 8192, knowledgeCutoff: 'Dec 2024' },
+  { name: 'DeepSeek R1', provider: 'DeepSeek', contextWindow: 131072, maxOutput: 8192, knowledgeCutoff: 'Dec 2024' },
 ];
 
 const PROVIDERS = ['All', 'OpenAI', 'Anthropic', 'Google', 'Meta', 'Mistral', 'DeepSeek'] as const;
@@ -181,6 +181,7 @@ export default function ModelContextWindow() {
 
           <TextField
             size="small"
+            label="Search models"
             placeholder="Search models..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -216,7 +217,7 @@ export default function ModelContextWindow() {
         </Box>
 
         {/* Chart */}
-        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflowX: 'auto' }}>
           {/* Header */}
           <Box
             sx={{
@@ -228,6 +229,7 @@ export default function ModelContextWindow() {
               borderBottom: 1,
               borderColor: 'divider',
               bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.01),
+              minWidth: 760,
             }}
           >
             <Typography sx={{ fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 180, flexShrink: 0 }}>
@@ -265,6 +267,15 @@ export default function ModelContextWindow() {
               <Box
                 key={`${model.provider}-${model.name}`}
                 onClick={() => handleRowClick(model)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleRowClick(model);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Copy details for ${model.name}`}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -275,6 +286,7 @@ export default function ModelContextWindow() {
                   borderColor: 'divider',
                   cursor: 'pointer',
                   transition: 'background-color 0.15s',
+                  minWidth: 760,
                   '&:hover': {
                     bgcolor: isDark ? alpha('#fff', 0.04) : alpha('#000', 0.03),
                   },

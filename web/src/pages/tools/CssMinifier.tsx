@@ -28,105 +28,230 @@ import { copyToClipboard, downloadFile, readFileAsText } from '../../utils/file'
 type IndentSize = '2' | '4';
 
 function minifyCss(css: string): string {
-  let result = css;
-  // Remove comments
-  result = result.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Remove newlines and carriage returns
-  result = result.replace(/[\r\n]+/g, '');
-  // Collapse multiple spaces to one
-  result = result.replace(/\s{2,}/g, ' ');
-  // Remove spaces around { } : ; ,
-  result = result.replace(/\s*\{\s*/g, '{');
-  result = result.replace(/\s*\}\s*/g, '}');
-  result = result.replace(/\s*;\s*/g, ';');
-  result = result.replace(/\s*:\s*/g, ':');
-  result = result.replace(/\s*,\s*/g, ',');
-  // Remove trailing semicolons before closing braces
-  result = result.replace(/;}/g, '}');
-  // Trim leading/trailing whitespace
-  result = result.trim();
-  return result;
+  let result = '';
+  let pendingSpace = false;
+
+  const appendPendingSpace = () => {
+    if (pendingSpace && result && !result.endsWith(' ')) result += ' ';
+    pendingSpace = false;
+  };
+
+  for (let i = 0; i < css.length;) {
+    const ch = css[i];
+
+    if (/\s/.test(ch)) {
+      pendingSpace = true;
+      i++;
+      continue;
+    }
+
+    if (css.startsWith('/*', i)) {
+      const end = css.indexOf('*/', i + 2);
+      if (end < 0) {
+        appendPendingSpace();
+        result += css.slice(i);
+        break;
+      }
+      const comment = css.slice(i, end + 2);
+      if (comment.startsWith('/*!')) {
+        appendPendingSpace();
+        result += comment;
+      }
+      i = end + 2;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      appendPendingSpace();
+      const quote = ch;
+      result += ch;
+      i++;
+      while (i < css.length) {
+        result += css[i];
+        if (css[i] === '\\' && i + 1 < css.length) {
+          result += css[i + 1];
+          i += 2;
+        } else if (css[i++] === quote) {
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (
+      css.slice(i, i + 4).toLowerCase() === 'url('
+      && (i === 0 || !/[\w-]/.test(css[i - 1]))
+    ) {
+      appendPendingSpace();
+      let depth = 0;
+      let quote = '';
+      while (i < css.length) {
+        const current = css[i];
+        result += current;
+        if (quote) {
+          if (current === '\\' && i + 1 < css.length) {
+            result += css[++i];
+          } else if (current === quote) {
+            quote = '';
+          }
+        } else if (current === '"' || current === "'") {
+          quote = current;
+        } else if (current === '(') {
+          depth++;
+        } else if (current === ')' && --depth === 0) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+
+    if ('{}:;,'.includes(ch)) {
+      result = result.trimEnd();
+      if (ch === '}' && result.endsWith(';')) result = result.slice(0, -1);
+      result += ch;
+      pendingSpace = false;
+      i++;
+      continue;
+    }
+
+    appendPendingSpace();
+    result += ch;
+    i++;
+  }
+
+  return result.trim();
 }
 
 function beautifyCss(css: string, indent: string): string {
-  // First strip comments and normalise whitespace so we work from a clean slate
-  let cleaned = css;
-  // Preserve comments by not stripping them — just normalise whitespace
-  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, (match) => `/*COMMENT:${match}*/`);
-  // Actually, for simplicity let's strip comments, normalise, then we won't re-add them.
-  cleaned = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Normalise all whitespace
-  cleaned = cleaned.replace(/[\r\n]+/g, ' ');
-  cleaned = cleaned.replace(/\s{2,}/g, ' ');
-  cleaned = cleaned.trim();
-
-  if (!cleaned) return '';
-
+  if (!css.trim()) return '';
   let result = '';
   let depth = 0;
+  let parenDepth = 0;
+  let pendingSpace = false;
 
-  const addIndent = () => indent.repeat(depth);
+  const appendIndent = () => {
+    if (!result || result.endsWith('\n')) result += indent.repeat(depth);
+  };
+  const appendPendingSpace = () => {
+    if (pendingSpace && result && !result.endsWith('\n') && !result.endsWith(' ')) result += ' ';
+    pendingSpace = false;
+  };
 
-  let i = 0;
-  while (i < cleaned.length) {
-    const ch = cleaned[i];
+  for (let i = 0; i < css.length;) {
+    const ch = css[i];
 
-    if (ch === '{') {
-      // Ensure space before {
+    if (/\s/.test(ch)) {
+      pendingSpace = true;
+      i++;
+      continue;
+    }
+
+    if (css.startsWith('/*', i)) {
+      const end = css.indexOf('*/', i + 2);
+      const comment = end < 0 ? css.slice(i) : css.slice(i, end + 2);
+      appendPendingSpace();
+      appendIndent();
+      result += comment;
+      i = end < 0 ? css.length : end + 2;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      appendPendingSpace();
+      appendIndent();
+      const quote = ch;
+      result += ch;
+      i++;
+      while (i < css.length) {
+        result += css[i];
+        if (css[i] === '\\' && i + 1 < css.length) {
+          result += css[i + 1];
+          i += 2;
+        } else if (css[i++] === quote) {
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (
+      css.slice(i, i + 4).toLowerCase() === 'url('
+      && (i === 0 || !/[\w-]/.test(css[i - 1]))
+    ) {
+      appendPendingSpace();
+      appendIndent();
+      let urlDepth = 0;
+      let quote = '';
+      while (i < css.length) {
+        const current = css[i];
+        result += current;
+        if (quote) {
+          if (current === '\\' && i + 1 < css.length) result += css[++i];
+          else if (current === quote) quote = '';
+        } else if (current === '"' || current === "'") {
+          quote = current;
+        } else if (current === '(') {
+          urlDepth++;
+        } else if (current === ')' && --urlDepth === 0) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+
+    if (ch === '(') {
+      appendPendingSpace();
+      appendIndent();
+      result += ch;
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (ch === ')') {
+      result = result.trimEnd();
+      result += ch;
+      parenDepth = Math.max(0, parenDepth - 1);
+      pendingSpace = false;
+      i++;
+      continue;
+    }
+
+    if (ch === '{' && parenDepth === 0) {
       result = result.trimEnd();
       result += ' {\n';
       depth++;
+      pendingSpace = false;
       i++;
-      // Skip whitespace after {
-      while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
-    } else if (ch === '}') {
-      // Remove trailing whitespace before }
+      continue;
+    }
+    if (ch === '}' && parenDepth === 0) {
       result = result.trimEnd();
       if (!result.endsWith('\n')) result += '\n';
       depth = Math.max(0, depth - 1);
-      result += addIndent() + '}\n';
+      result += indent.repeat(depth) + '}\n';
+      if (depth === 0) result += '\n';
+      pendingSpace = false;
       i++;
-      // Skip whitespace after }
-      while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
-      // Add blank line between rule blocks at top level
-      if (depth === 0 && i < cleaned.length) {
-        result += '\n';
-      }
-    } else if (ch === ';') {
-      result += ';\n';
-      i++;
-      // Skip whitespace after ;
-      while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
-      // Add indent for next line if not closing brace
-      if (i < cleaned.length && cleaned[i] !== '}') {
-        result += addIndent();
-      }
-    } else if (ch === ':') {
-      // Add colon with a space after it (for declarations)
-      // But not for selectors like :hover, ::before — check if we're inside a rule
-      if (depth > 0) {
-        result += ': ';
-      } else {
-        result += ch;
-      }
-      i++;
-      // Skip whitespace after :
-      while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
-    } else {
-      // At the beginning of a line or after a newline, add indent
-      if (result.endsWith('\n')) {
-        result += addIndent();
-      }
-      result += ch;
-      i++;
+      continue;
     }
+    if (ch === ';' && parenDepth === 0) {
+      result = result.trimEnd() + ';\n';
+      pendingSpace = false;
+      i++;
+      continue;
+    }
+
+    appendPendingSpace();
+    appendIndent();
+    result += ch;
+    i++;
   }
 
-  // Clean up: remove trailing blank lines, ensure single newline at end
-  result = result.replace(/\n{3,}/g, '\n\n');
-  result = result.trimEnd() + '\n';
-
-  return result;
+  return result.replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 function formatBytes(bytes: number): string {
@@ -177,6 +302,7 @@ export default function CssMinifier() {
     try {
       const text = await navigator.clipboard.readText();
       setInput(text);
+      setOutput('');
     } catch {
       enqueueSnackbar('Failed to paste from clipboard', { variant: 'error' });
     }
@@ -193,6 +319,7 @@ export default function CssMinifier() {
     try {
       const text = await readFileAsText(file);
       setInput(text);
+      setOutput('');
       enqueueSnackbar(`Loaded ${file.name}`, { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to read file', { variant: 'error' });
@@ -243,7 +370,12 @@ export default function CssMinifier() {
           <ToggleButtonGroup
             value={indentSize}
             exclusive
-            onChange={(_, v) => v && setIndentSize(v)}
+            onChange={(_, v) => {
+              if (v) {
+                setIndentSize(v);
+                setOutput('');
+              }
+            }}
             size="small"
             sx={{ ml: 1 }}
           >
@@ -325,10 +457,14 @@ export default function CssMinifier() {
                 rows={18}
                 fullWidth
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setOutput('');
+                }}
                 placeholder="Paste or type your CSS here..."
                 variant="standard"
                 slotProps={{
+                  htmlInput: { 'aria-label': 'CSS input' },
                   input: {
                     disableUnderline: true,
                     sx: {
@@ -386,6 +522,7 @@ export default function CssMinifier() {
                 fullWidth
                 value={output}
                 slotProps={{
+                  htmlInput: { 'aria-label': 'Formatted CSS output' },
                   input: {
                     readOnly: true,
                     disableUnderline: true,

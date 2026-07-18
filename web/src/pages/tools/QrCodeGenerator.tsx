@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Typography,
   Stack,
@@ -26,48 +26,58 @@ export default function QrCodeGenerator() {
   const [size, setSize] = useState(256);
   const [dataUrl, setDataUrl] = useState('');
   const [error, setError] = useState('');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isGenerating, setIsGenerating] = useState(true);
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
   useEffect(() => {
-    if (!input.trim()) {
-      setDataUrl('');
-      setError('');
-      return;
-    }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    QRCode.toCanvas(
-      canvas,
-      input,
-      {
+    if (!input.trim()) return;
+    let cancelled = false;
+    QRCode.toDataURL(input, {
         width: size,
         margin: 2,
         color: {
-          dark: isDark ? '#ffffff' : '#000000',
-          light: isDark ? '#18181b' : '#ffffff',
+          dark: '#000000',
+          light: '#ffffff',
         },
-      },
-      (err) => {
-        if (err) {
-          setError(err.message);
-          setDataUrl('');
-        } else {
-          setError('');
-          setDataUrl(canvas.toDataURL('image/png'));
-        }
-      }
-    );
-  }, [input, size, isDark]);
+      })
+      .then((url) => {
+        if (!cancelled) setDataUrl(url);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Failed to generate QR code');
+      })
+      .finally(() => {
+        if (!cancelled) setIsGenerating(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [input, size]);
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    setDataUrl('');
+    setError('');
+    setIsGenerating(!!value.trim());
+  };
+
+  const handleSizeChange = (value: number) => {
+    setSize(value);
+    setDataUrl('');
+    setError('');
+    setIsGenerating(!!input.trim());
+  };
 
   const handleDownload = () => {
     if (!dataUrl) return;
     const link = document.createElement('a');
     link.href = dataUrl;
     link.download = 'qrcode.png';
+    document.body.appendChild(link);
     link.click();
+    link.remove();
   };
 
   const handleCopyDataUrl = async () => {
@@ -98,7 +108,7 @@ export default function QrCodeGenerator() {
                 multiline
                 rows={4}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => handleInputChange(e.target.value)}
                 placeholder="Enter text or URL..."
                 error={!!error}
                 helperText={error}
@@ -106,7 +116,7 @@ export default function QrCodeGenerator() {
                   input: {
                     endAdornment: input ? (
                       <Tooltip title="Clear">
-                        <IconButton size="small" onClick={() => setInput('')}>
+                        <IconButton size="small" onClick={() => handleInputChange('')} aria-label="Clear QR content">
                           <ClearIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -125,7 +135,8 @@ export default function QrCodeGenerator() {
                 </Typography>
                 <Slider
                   value={size}
-                  onChange={(_, v) => setSize(v as number)}
+                  onChange={(_, v) => handleSizeChange(v as number)}
+                  aria-label="QR code size"
                   min={128}
                   max={512}
                   step={32}
@@ -142,12 +153,12 @@ export default function QrCodeGenerator() {
                 />
               )}
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Button
                   variant="outlined"
                   startIcon={<DownloadIcon />}
                   onClick={handleDownload}
-                  disabled={!dataUrl}
+                  disabled={!dataUrl || isGenerating}
                 >
                   Download PNG
                 </Button>
@@ -155,7 +166,7 @@ export default function QrCodeGenerator() {
                   variant="outlined"
                   startIcon={<ContentCopyIcon />}
                   onClick={handleCopyDataUrl}
-                  disabled={!dataUrl}
+                  disabled={!dataUrl || isGenerating}
                 >
                   Copy Data URL
                 </Button>
@@ -177,14 +188,26 @@ export default function QrCodeGenerator() {
                 minHeight: 300,
               }}
             >
-              <canvas
-                ref={canvasRef}
-                style={{
-                  display: input.trim() ? 'block' : 'none',
-                  borderRadius: 8,
-                }}
-              />
-              {!input.trim() && (
+              {dataUrl && (
+                <img
+                  src={dataUrl}
+                  alt="Generated QR code"
+                  width={size}
+                  height={size}
+                  style={{
+                    display: 'block',
+                    borderRadius: 8,
+                    maxWidth: '100%',
+                    height: 'auto',
+                  }}
+                />
+              )}
+              {isGenerating && (
+                <Typography color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                  Generating QR code…
+                </Typography>
+              )}
+              {!input.trim() && !isGenerating && (
                 <Typography color="text.secondary" sx={{ fontSize: '0.875rem' }}>
                   Enter text to generate a QR code
                 </Typography>

@@ -47,6 +47,8 @@ const MODELS: ModelPricing[] = [
   { name: 'Mistral Large', provider: 'Mistral', inputPer1M: 2.00, outputPer1M: 6.00, maxContext: 128000 },
 ];
 
+const MAX_REQUESTS_PER_DAY = 1_000_000_000;
+
 export default function AiPricingCalculator() {
   const [selectedModel, setSelectedModel] = useState(0);
   const [inputTokens, setInputTokens] = useState(1000);
@@ -67,7 +69,12 @@ export default function AiPricingCalculator() {
     return { inputCost, outputCost, perRequest, daily, monthly, yearly };
   }, [inputTokens, outputTokens, requestsPerDay, model]);
 
-  const fmt = (n: number) => n < 0.01 ? `$${n.toFixed(6)}` : n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
+  const fmt = (n: number) => {
+    if (!Number.isFinite(n)) return 'Unavailable';
+    return n < 0.01 ? `$${n.toFixed(6)}` : n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
+  };
+  const totalTokens = inputTokens + outputTokens;
+  const exceedsContext = totalTokens > model.maxContext;
 
   return (
     <>
@@ -157,7 +164,17 @@ export default function AiPricingCalculator() {
                 size="small"
                 fullWidth
                 value={requestsPerDay}
-                onChange={(e) => setRequestsPerDay(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => {
+                  const parsed = Number(e.target.value);
+                  setRequestsPerDay(Number.isFinite(parsed)
+                    ? Math.min(MAX_REQUESTS_PER_DAY, Math.max(0, Math.trunc(parsed)))
+                    : 0);
+                }}
+                helperText={exceedsContext
+                  ? `${totalTokens.toLocaleString()} input + output tokens exceed this model's ${model.maxContext.toLocaleString()} token context window.`
+                  : 'Use 0 to model no requests.'}
+                error={exceedsContext}
+                slotProps={{ htmlInput: { min: 0, max: MAX_REQUESTS_PER_DAY, step: 1 } }}
               />
             </Stack>
           </Grid>

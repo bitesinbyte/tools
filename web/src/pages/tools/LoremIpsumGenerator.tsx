@@ -16,11 +16,18 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import DownloadIcon from '@mui/icons-material/Download';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
 import { copyToClipboard, downloadFile } from '../../utils/file';
 
 type Unit = 'words' | 'sentences' | 'paragraphs';
+
+const UNIT_LIMITS: Record<Unit, number> = {
+  words: 1000,
+  sentences: 200,
+  paragraphs: 50,
+};
 
 const WORDS = [
   'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit', 'sed', 'do',
@@ -63,6 +70,11 @@ function generateText(unit: Unit, count: number): string {
   }
 }
 
+function normalizeCount(value: number, unit: Unit): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(UNIT_LIMITS[unit], Math.trunc(value)));
+}
+
 export default function LoremIpsumGenerator() {
   const [unit, setUnit] = useState<Unit>('paragraphs');
   const [count, setCount] = useState(3);
@@ -72,8 +84,16 @@ export default function LoremIpsumGenerator() {
   const isDark = theme.palette.mode === 'dark';
 
   const generate = useCallback(() => {
-    setOutput(generateText(unit, Math.min(count, 1000)));
+    const normalized = normalizeCount(count, unit);
+    setCount(normalized);
+    setOutput(generateText(unit, normalized));
   }, [unit, count]);
+
+  const handleUnitChange = (nextUnit: Unit) => {
+    setUnit(nextUnit);
+    setCount((current) => normalizeCount(current, nextUnit));
+    setOutput('');
+  };
 
   const handleCopy = async () => {
     const ok = await copyToClipboard(output);
@@ -111,7 +131,7 @@ export default function LoremIpsumGenerator() {
           <ToggleButtonGroup
             value={unit}
             exclusive
-            onChange={(_, v) => v && setUnit(v)}
+            onChange={(_, v: Unit | null) => v && handleUnitChange(v)}
             size="small"
           >
             <ToggleButton value="words">Words</ToggleButton>
@@ -124,9 +144,13 @@ export default function LoremIpsumGenerator() {
             type="number"
             size="small"
             value={count}
-            onChange={(e) => setCount(Math.max(1, Math.min(1000, Number(e.target.value) || 1)))}
+            onChange={(e) => {
+              setCount(normalizeCount(Number(e.target.value), unit));
+              setOutput('');
+            }}
             sx={{ width: 100 }}
-            slotProps={{ input: { inputProps: { min: 1, max: 1000 } } }}
+            helperText={`Max ${UNIT_LIMITS[unit]}`}
+            slotProps={{ input: { inputProps: { min: 1, max: UNIT_LIMITS[unit], step: 1 } } }}
           />
 
           <Box sx={{ flexGrow: 1 }} />
@@ -169,7 +193,7 @@ export default function LoremIpsumGenerator() {
               <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', flex: 1 }}>Generated Text</Typography>
               <Tooltip title="Copy">
                 <IconButton size="small" onClick={handleCopy} sx={{ color: 'text.secondary' }}>
-                  <ContentCopyIcon sx={{ fontSize: 16 }} />
+                  <DownloadIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Download">

@@ -6,9 +6,9 @@ export default function PrivacyPolicy() {
     <>
       <PageHead title="Privacy Policy - BitesInByte" description="BitesInByte privacy statement and cookie policy." />
       <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', py: { xs: 2, md: 4 } }}>
-        <Typography variant="h4">bitesinbyte Privacy Statement</Typography>
+        <Typography component="h1" variant="h4">Bites In Byte Privacy Statement</Typography>
 
-        <Typography variant="h6" sx={{ mt: 2 }}>1. Acknowledgment and Acceptance of Terms</Typography>
+        <Typography component="h2" variant="h6" sx={{ mt: 2 }}>1. Acknowledgment and Acceptance of Terms</Typography>
         <Typography variant="body1" color="text.secondary">
           bitesinbyte is committed to protecting your privacy. This Privacy Statement sets forth our current privacy
           practices with regard to the information we collect when you or your computer interact with bitesinbyte.com.
@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
           to the information collection and use practices described in this Website Privacy Statement.
         </Typography>
 
-        <Typography variant="h6">2. Participating Clients, Merchant Policies, and Third Party Websites</Typography>
+        <Typography component="h2" variant="h6">2. Participating Clients, Merchant Policies, and Third-Party Websites</Typography>
         <Typography variant="body1" color="text.secondary">
           Related services and offerings with links from this website, including all other websites, have their own
           privacy statements that can be viewed by clicking on the corresponding links within each respective website.
@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
           transaction with such parties.
         </Typography>
 
-        <Typography variant="h6">3. Information We Collect and How We Use It</Typography>
+        <Typography component="h2" variant="h6">3. Information We Collect and How We Use It</Typography>
         <Typography variant="body1" color="text.secondary">
           bitesinbyte collects certain information from and about its users three ways: directly from our Web Server
           logs, the user, and with Cookies. When you visit our Website, we may track information to administer the
@@ -36,7 +36,7 @@ export default function PrivacyPolicy() {
           marketing purposes.
         </Typography>
 
-        <Typography variant="h6">3a. Tracking Pixels</Typography>
+        <Typography component="h2" variant="h6">3a. Tracking Pixels</Typography>
         <Typography variant="body1" color="text.secondary">
           This website uses Google Ads' free conversion tracking features on certain pages. If you contact us online,
           the destination page will have code on it that will help us understand the path you took to arrive on that
@@ -45,36 +45,60 @@ export default function PrivacyPolicy() {
           Microsoft Clarity and Microsoft Advertising to capture how you use and interact with our website through
           behavioral metrics, heatmaps, and session replay to improve and market our products/services. For more
           information about how Microsoft collects and uses your data, visit the{' '}
-          <Link href="https://privacy.microsoft.com/privacystatement" target="_blank" sx={{ color: 'text.primary' }}>
+          <Link
+            href="https://privacy.microsoft.com/privacystatement"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Microsoft Privacy Statement (opens in a new tab)"
+            sx={{ color: 'text.primary' }}
+          >
             Microsoft Privacy Statement
           </Link>.
         </Typography>
 
-        <Typography variant="h6">4. Cookie Policy</Typography>
+        <Typography component="h2" variant="h6">4. Cookie Policy</Typography>
         <Typography variant="body1" color="text.secondary">
           Cookies are files with a small amount of data, which may include an anonymous unique identifier. Cookies are
           sent to your browser from a website and stored on your computer's hard drive. Like many sites, we use
           "cookies" to collect information. You can instruct your browser to refuse all cookies or to indicate when a
           cookie is being sent. You may opt out of Google Analytics by visiting the{' '}
-          <Link href="https://tools.google.com/dlpage/gaoptout" target="_blank" sx={{ color: 'text.primary' }}>
+          <Link
+            href="https://tools.google.com/dlpage/gaoptout"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Google Analytics Opt-out page (opens in a new tab)"
+            sx={{ color: 'text.primary' }}
+          >
             Google Analytics Opt-out page
           </Link>.
         </Typography>
 
-        <Typography variant="h6">5. Changes to This Statement</Typography>
+        <Typography component="h2" variant="h6">5. Changes to This Statement</Typography>
         <Typography variant="body1" color="text.secondary">
           bitesinbyte has the discretion to occasionally update this privacy statement. We encourage you to
           periodically review this privacy statement to stay informed about how we are helping to protect the personal
           information we collect. If you have questions regarding our Privacy Statement, please{' '}
-          <Link href="https://github.com/bitesinbyte/tools/discussions/categories/q-a" target="_blank" sx={{ color: 'text.primary' }}>
+          <Link
+            href="https://github.com/bitesinbyte/tools/discussions/categories/q-a"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Contact Bites In Byte (opens in a new tab)"
+            sx={{ color: 'text.primary' }}
+          >
             contact us
           </Link>.
         </Typography>
 
-        <Typography variant="h6">6. Google Disclosures</Typography>
+        <Typography component="h2" variant="h6">6. Google Disclosures</Typography>
         <Typography variant="body1" color="text.secondary">
           Read Google's advertiser guide to working with third parties{' '}
-          <Link href="https://support.google.com/adspolicy/answer/9457109?hl=en" target="_blank" sx={{ color: 'text.primary' }}>
+          <Link
+            href="https://support.google.com/adspolicy/answer/9457109?hl=en"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Google advertiser guide (opens in a new tab)"
+            sx={{ color: 'text.primary' }}
+          >
             here
           </Link>.
         </Typography>

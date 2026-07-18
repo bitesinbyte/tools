@@ -15,20 +15,22 @@
     "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
-    "ajv": "^8.18.0",
+    "ajv": "^8.20.0",
+    "ajv-draft-04": "^1.0.0",
+    "ajv-formats": "^3.0.1",
     "cron-parser": "^5.5.0",
     "cronstrue": "^3.14.0",
-    "dompurify": "^3.3.3",
-    "js-yaml": "^4.1.1",
+    "dompurify": "^3.4.12",
+    "js-yaml": "^4.3.0",
     "jwt-decode": "^4.0.0",
-    "marked": "^18.0.0",
+    "marked": "^18.0.6",
     "notistack": "^3.0.2",
     "papaparse": "^5.5.3",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-helmet-async": "^3.0.0",
-    "react-router-dom": "^7.14.0",
+    "react-router-dom": "^7.18.1",
     "sql-formatter": "^15.7.3"
   },
   "devDependencies": {
@@ -49,6 +51,6 @@
     "vite": "^8.0.4"
   },
   "overrides": {
-    "dompurify": "^3.3.3"
+    "dompurify": "^3.4.12"
   }
 }

@@ -24,24 +24,49 @@ type Metric = 'cosine' | 'dot' | 'euclidean';
 function parseVector(input: string): number[] | null {
   try {
     const trimmed = input.trim();
+    if (!trimmed) return null;
+    let values: unknown[];
     if (trimmed.startsWith('[')) {
-      return JSON.parse(trimmed);
+      const parsed: unknown = JSON.parse(trimmed);
+      if (!Array.isArray(parsed)) return null;
+      values = parsed;
+    } else {
+      const parts = trimmed.split(/[\s,]+/);
+      if (parts.some((part) => part === '')) return null;
+      values = parts.map(Number);
     }
-    return trimmed.split(/[\s,]+/).map(Number).filter((n) => !isNaN(n));
+    if (values.length === 0 || !values.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      return null;
+    }
+    return values as number[];
   } catch {
     return null;
   }
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0, magA = 0, magB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
+function vectorMagnitude(values: number[]): number {
+  let scale = 0;
+  let sumSquares = 1;
+  for (const value of values) {
+    const absolute = Math.abs(value);
+    if (absolute === 0) continue;
+    if (scale < absolute) {
+      sumSquares = 1 + sumSquares * (scale / absolute) ** 2;
+      scale = absolute;
+    } else {
+      sumSquares += (absolute / scale) ** 2;
+    }
   }
-  const denom = Math.sqrt(magA) * Math.sqrt(magB);
-  return denom === 0 ? 0 : dot / denom;
+  return scale === 0 ? 0 : scale * Math.sqrt(sumSquares);
+}
+
+function cosineSimilarity(a: number[], b: number[], magA: number, magB: number): number | null {
+  if (magA === 0 || magB === 0) return null;
+  let similarity = 0;
+  for (let i = 0; i < a.length; i++) {
+    similarity += (a[i] / magA) * (b[i] / magB);
+  }
+  return Math.max(-1, Math.min(1, similarity));
 }
 
 function dotProduct(a: number[], b: number[]): number {
@@ -49,7 +74,7 @@ function dotProduct(a: number[], b: number[]): number {
 }
 
 function euclideanDistance(a: number[], b: number[]): number {
-  return Math.sqrt(a.reduce((sum, val, i) => sum + (val - b[i]) ** 2, 0));
+  return vectorMagnitude(a.map((value, i) => value - b[i]));
 }
 
 function drawVectors(canvas: HTMLCanvasElement, vecA: number[], vecB: number[], isDark: boolean) {
@@ -145,22 +170,22 @@ export default function EmbeddingVisualizer() {
 
   const vecA = useMemo(() => parseVector(inputA), [inputA]);
   const vecB = useMemo(() => parseVector(inputB), [inputB]);
+  const dimensionsMatch = !!vecA && !!vecB && vecA.length === vecB.length;
 
   const results = useMemo(() => {
-    if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0) return null;
-    const minLen = Math.min(vecA.length, vecB.length);
-    const a = vecA.slice(0, minLen);
-    const b = vecB.slice(0, minLen);
+    if (!vecA || !vecB || !dimensionsMatch) return null;
+    const magnitudeA = vectorMagnitude(vecA);
+    const magnitudeB = vectorMagnitude(vecB);
     return {
-      cosine: cosineSimilarity(a, b),
-      dot: dotProduct(a, b),
-      euclidean: euclideanDistance(a, b),
+      cosine: cosineSimilarity(vecA, vecB, magnitudeA, magnitudeB),
+      dot: dotProduct(vecA, vecB),
+      euclidean: euclideanDistance(vecA, vecB),
       dimA: vecA.length,
       dimB: vecB.length,
-      magnitudeA: Math.sqrt(vecA.reduce((s, v) => s + v * v, 0)),
-      magnitudeB: Math.sqrt(vecB.reduce((s, v) => s + v * v, 0)),
+      magnitudeA,
+      magnitudeB,
     };
-  }, [vecA, vecB]);
+  }, [vecA, vecB, dimensionsMatch]);
 
   useEffect(() => {
     if (canvasRef.current && vecA && vecB) {
@@ -173,16 +198,21 @@ export default function EmbeddingVisualizer() {
     enqueueSnackbar(ok ? 'Copied' : 'Failed', { variant: ok ? 'success' : 'error' });
   };
 
-  const metricValue = results
+  const metricValue: number | null = results
     ? metric === 'cosine' ? results.cosine
     : metric === 'dot' ? results.dot
     : results.euclidean
-    : 0;
+    : null;
+
+  const formatMetric = (value: number | null, digits = 6) => {
+    if (value === null) return 'Undefined';
+    return Number.isFinite(value) ? value.toFixed(digits) : 'Overflow';
+  };
 
   const metricItems = results ? [
-    { label: 'Cosine Similarity', value: results.cosine.toFixed(6), highlight: metric === 'cosine' },
-    { label: 'Dot Product', value: results.dot.toFixed(6), highlight: metric === 'dot' },
-    { label: 'Euclidean Distance', value: results.euclidean.toFixed(6), highlight: metric === 'euclidean' },
+    { label: 'Cosine Similarity', value: formatMetric(results.cosine), highlight: metric === 'cosine' },
+    { label: 'Dot Product', value: formatMetric(results.dot), highlight: metric === 'dot' },
+    { label: 'Euclidean Distance', value: formatMetric(results.euclidean), highlight: metric === 'euclidean' },
     { label: 'Dimensions (A)', value: results.dimA.toString() },
     { label: 'Dimensions (B)', value: results.dimB.toString() },
     { label: '|A| Magnitude', value: results.magnitudeA.toFixed(4) },
@@ -224,10 +254,13 @@ export default function EmbeddingVisualizer() {
           </ToggleButtonGroup>
           {results && (
             <Chip
-              label={`${metric === 'cosine' ? 'Similarity' : metric === 'dot' ? 'Dot Product' : 'Distance'}: ${metricValue.toFixed(4)}`}
-              color={metric === 'cosine' ? (metricValue > 0.8 ? 'success' : metricValue > 0.5 ? 'warning' : 'error') : 'default'}
+              label={`${metric === 'cosine' ? 'Similarity' : metric === 'dot' ? 'Dot Product' : 'Distance'}: ${formatMetric(metricValue, 4)}`}
+              color={metric === 'cosine' && metricValue !== null ? (metricValue > 0.8 ? 'success' : metricValue > 0.5 ? 'warning' : 'error') : 'default'}
               variant="outlined"
             />
+          )}
+          {vecA && vecB && !dimensionsMatch && (
+            <Chip label="Vectors must have the same dimensions" color="error" variant="outlined" />
           )}
         </Box>
 
@@ -249,8 +282,8 @@ export default function EmbeddingVisualizer() {
                   value={inputA}
                   onChange={(e) => setInputA(e.target.value)}
                   placeholder="[0.1, 0.2, 0.3, ...] or space/comma separated"
-                  error={!!inputA && !vecA}
-                  helperText={inputA && !vecA ? 'Invalid vector format' : vecA ? `${vecA.length} dimensions` : undefined}
+                  error={!!inputA && (!vecA || (!!vecB && !dimensionsMatch))}
+                  helperText={inputA && !vecA ? 'Enter a non-empty list of finite numbers' : vecA ? `${vecA.length} dimensions${vecB && !dimensionsMatch ? ' — does not match Vector B' : ''}` : undefined}
                   slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.8125rem' } } }}
                 />
               </Box>
@@ -269,8 +302,8 @@ export default function EmbeddingVisualizer() {
                   value={inputB}
                   onChange={(e) => setInputB(e.target.value)}
                   placeholder="[0.4, 0.5, 0.6, ...] or space/comma separated"
-                  error={!!inputB && !vecB}
-                  helperText={inputB && !vecB ? 'Invalid vector format' : vecB ? `${vecB.length} dimensions` : undefined}
+                  error={!!inputB && (!vecB || (!!vecA && !dimensionsMatch))}
+                  helperText={inputB && !vecB ? 'Enter a non-empty list of finite numbers' : vecB ? `${vecB.length} dimensions${vecA && !dimensionsMatch ? ' — does not match Vector A' : ''}` : undefined}
                   slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.8125rem' } } }}
                 />
               </Box>
@@ -329,6 +362,8 @@ export default function EmbeddingVisualizer() {
                 ref={canvasRef}
                 width={480}
                 height={480}
+                role="img"
+                aria-label="Two-dimensional visualization of vectors A and B"
                 style={{ maxWidth: '100%', height: 'auto' }}
               />
             </Box>

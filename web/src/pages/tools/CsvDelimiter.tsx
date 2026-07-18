@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import {
   Button,
   TextField,
@@ -28,28 +28,57 @@ export default function CsvDelimiter() {
   const [oldDelimiter, setOldDelimiter] = useState('');
   const [newDelimiter, setNewDelimiter] = useState('');
   const [fileName, setFileName] = useState('');
+  const [linebreak, setLinebreak] = useState('\n');
+  const [hadBom, setHadBom] = useState(false);
+  const [hadTrailingLinebreak, setHadTrailingLinebreak] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const loadId = useRef(0);
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
   const loadFile = useCallback(
     async (file: File) => {
+      const currentLoadId = loadId.current + 1;
+      loadId.current = currentLoadId;
       try {
         const text = await readFileAsText(file);
-        const result = Papa.parse<string[]>(text, { skipEmptyLines: true });
-        setCsvData(result.data);
+        if (!text.trim()) throw new Error('The selected file is empty');
+        const hasBom = text.startsWith('\uFEFF');
+        const result = Papa.parse<string[]>(hasBom ? text.slice(1) : text, {
+          skipEmptyLines: false,
+        });
+        const fatalErrors = result.errors.filter(
+          (error) => !(error.type === 'Delimiter' && error.code === 'UndetectableDelimiter'),
+        );
+        if (fatalErrors.length > 0) {
+          throw new Error(fatalErrors[0].message);
+        }
+        const parsedRows = [...result.data];
+        const endsWithLinebreak = /(?:\r\n|\r|\n)$/.test(hasBom ? text.slice(1) : text);
+        if (
+          endsWithLinebreak
+          && parsedRows.length > 0
+          && parsedRows[parsedRows.length - 1].every((cell) => cell === '')
+        ) {
+          parsedRows.pop();
+        }
+        if (currentLoadId !== loadId.current) return;
+        setCsvData(parsedRows);
         setFileName(file.name);
+        setOldDelimiter(result.meta.delimiter || ',');
+        setLinebreak(result.meta.linebreak || '\n');
+        setHadBom(hasBom);
+        setHadTrailingLinebreak(endsWithLinebreak);
+        setNewDelimiter('');
 
-        // Detect delimiter
-        const firstLine = text.split('\n')[0] ?? '';
-        const delimiters = [',', ';', '\t', '|'];
-        const detected = delimiters.find((d) => firstLine.includes(d)) ?? ',';
-        setOldDelimiter(detected === '\t' ? '\\t' : detected);
-
-        enqueueSnackbar(`Loaded ${file.name} (${result.data.length} rows)`, { variant: 'success' });
-      } catch {
-        enqueueSnackbar('Failed to parse CSV file', { variant: 'error' });
+        enqueueSnackbar(`Loaded ${file.name} (${parsedRows.length} rows)`, { variant: 'success' });
+      } catch (error) {
+        if (currentLoadId !== loadId.current) return;
+        enqueueSnackbar(
+          error instanceof Error ? `Failed to parse CSV file: ${error.message}` : 'Failed to parse CSV file',
+          { variant: 'error' },
+        );
       }
     },
     [enqueueSnackbar],
@@ -75,9 +104,39 @@ export default function CsvDelimiter() {
   const handleConvert = () => {
     if (!csvData) return;
     const delimiter = newDelimiter === '\\t' ? '\t' : newDelimiter;
-    const output = Papa.unparse(csvData, { delimiter });
-    downloadFile(fileName ? `converted-${fileName}` : 'bitesinbyte-csv-tool.csv', output);
-    enqueueSnackbar('File downloaded', { variant: 'success' });
+    try {
+      const converted = Papa.unparse(csvData, { delimiter, newline: linebreak });
+      const output = `${converted}${hadTrailingLinebreak ? linebreak : ''}`;
+      const baseName = fileName.replace(/\.[^.]+$/, '') || 'converted';
+      const extension = delimiter === '\t' ? 'tsv' : 'csv';
+      downloadFile(
+        `converted-${baseName}.${extension}`,
+        `${hadBom ? '\uFEFF' : ''}${output}`,
+        'text/csv;charset=utf-8',
+      );
+      enqueueSnackbar('File downloaded', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar(
+        error instanceof Error ? `Failed to convert CSV: ${error.message}` : 'Failed to convert CSV',
+        { variant: 'error' },
+      );
+    }
+  };
+
+  const normalizedNewDelimiter = newDelimiter === '\\t' ? '\t' : newDelimiter;
+  const delimiterError = newDelimiter.length > 0
+    && (
+      Array.from(normalizedNewDelimiter).length !== 1
+      || ['"', '\r', '\n', '\uFEFF'].includes(normalizedNewDelimiter)
+    );
+  const columnCount = useMemo(
+    () => csvData?.reduce((max, row) => Math.max(max, row.length), 0) ?? 0,
+    [csvData],
+  );
+  const displayDelimiter = (delimiter: string) => {
+    if (delimiter === '\t') return '\\t';
+    if (delimiter === ' ') return 'space';
+    return delimiter;
   };
 
   const presetDelimiters = [
@@ -121,6 +180,7 @@ export default function CsvDelimiter() {
               cursor: 'pointer',
             }}
             component="label"
+            aria-label="Upload CSV file"
           >
             <CloudUploadIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
             <Typography sx={{ fontWeight: 500, mb: 0.5 }}>
@@ -146,11 +206,18 @@ export default function CsvDelimiter() {
               }}
             >
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
-                <Chip label={fileName} variant="outlined" size="small" />
-                <Chip label={`${csvData.length} rows`} variant="outlined" size="small" />
-                <Chip label={`${csvData[0]?.length ?? 0} columns`} variant="outlined" size="small" />
                 <Chip
-                  label={`Delimiter: "${oldDelimiter}"`}
+                  label={fileName}
+                  variant="outlined"
+                  size="small"
+                  sx={{ maxWidth: '100%', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                />
+                <Chip label={`${csvData.length} rows`} variant="outlined" size="small" />
+                <Chip label={`${columnCount} columns`} variant="outlined" size="small" />
+                <Chip
+                  label={columnCount > 1
+                    ? `Delimiter: "${displayDelimiter(oldDelimiter)}"`
+                    : 'Delimiter: not detected (single column)'}
                   variant="outlined"
                   size="small"
                   color="info"
@@ -178,6 +245,8 @@ export default function CsvDelimiter() {
                     value={newDelimiter}
                     onChange={(e) => setNewDelimiter(e.target.value)}
                     placeholder="e.g., ; or | or \\t"
+                    error={delimiterError}
+                    helperText={delimiterError ? 'Enter one character (quotes and line breaks are not allowed).' : ' '}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>
@@ -199,7 +268,7 @@ export default function CsvDelimiter() {
                     variant="contained"
                     startIcon={<DownloadIcon />}
                     fullWidth
-                    disabled={!newDelimiter}
+                    disabled={!newDelimiter || delimiterError}
                     onClick={handleConvert}
                   >
                     Convert & Download
@@ -234,7 +303,7 @@ export default function CsvDelimiter() {
                       >
                         #
                       </TableCell>
-                      {csvData[0]?.map((_, colIndex) => (
+                      {Array.from({ length: columnCount }, (_, colIndex) => (
                         <TableCell
                           key={colIndex}
                           sx={{
@@ -255,7 +324,7 @@ export default function CsvDelimiter() {
                         <TableCell sx={{ fontSize: '0.8125rem', color: 'text.secondary' }}>
                           {rowIndex + 1}
                         </TableCell>
-                        {row.map((cell, cellIndex) => (
+                        {Array.from({ length: columnCount }, (_, cellIndex) => (
                           <TableCell
                             key={cellIndex}
                             sx={{
@@ -267,7 +336,7 @@ export default function CsvDelimiter() {
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {cell}
+                            {row[cellIndex] ?? ''}
                           </TableCell>
                         ))}
                       </TableRow>

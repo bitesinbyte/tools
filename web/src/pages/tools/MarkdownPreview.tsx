@@ -58,9 +58,26 @@ export default function MarkdownPreview() {
   const html = useMemo(() => {
     try {
       const raw = marked.parse(markdown, { async: false }) as string;
-      return DOMPurify.sanitize(raw);
+      const sanitized = DOMPurify.sanitize(raw, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ['base', 'form', 'iframe', 'input', 'object', 'style'],
+        FORBID_ATTR: ['style'],
+        RETURN_DOM_FRAGMENT: true,
+      });
+      sanitized.querySelectorAll('a').forEach((link) => {
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+        link.setAttribute('referrerpolicy', 'no-referrer');
+      });
+      sanitized.querySelectorAll('img').forEach((image) => {
+        image.setAttribute('loading', 'lazy');
+        image.setAttribute('referrerpolicy', 'no-referrer');
+      });
+      const container = document.createElement('div');
+      container.append(sanitized);
+      return container.innerHTML;
     } catch {
-      return '<p style="color:red">Error parsing markdown</p>';
+      return '<p>Error parsing markdown</p>';
     }
   }, [markdown]);
 
@@ -131,6 +148,7 @@ export default function MarkdownPreview() {
               </Box>
               <Box sx={{ flex: 1 }}>
                 <textarea
+                  aria-label="Markdown input"
                   value={markdown}
                   onChange={(e) => setMarkdown(e.target.value)}
                   placeholder="Write markdown here..."
@@ -157,6 +175,7 @@ export default function MarkdownPreview() {
           {/* Preview */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Box
+              aria-label="Rendered Markdown preview"
               sx={{
                 border: 1,
                 borderColor: 'divider',

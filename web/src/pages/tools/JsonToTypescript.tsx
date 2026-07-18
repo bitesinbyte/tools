@@ -7,6 +7,7 @@ import {
   IconButton,
   Tooltip,
   Chip,
+  TextField,
   alpha,
   useTheme,
 } from '@mui/material';
@@ -52,78 +53,106 @@ const SAMPLE_JSON = `{
   ]
 }`;
 
-function jsonToTs(json: unknown, name: string, indent: number = 0): string {
-  const pad = '  '.repeat(indent);
-  const lines: string[] = [];
+type JsonObject = Record<string, unknown>;
 
-  if (Array.isArray(json)) {
-    if (json.length === 0) {
-      return `${pad}export type ${name} = unknown[];`;
-    }
-    // Analyze array items for union types
-    const itemType = inferTypeFromValue(json[0], `${name}Item`, indent);
-    if (typeof json[0] === 'object' && json[0] !== null && !Array.isArray(json[0])) {
-      lines.push(jsonToTs(json[0], `${name}Item`, indent));
-      lines.push('');
-      lines.push(`${pad}export type ${name} = ${name}Item[];`);
+const RESERVED_TYPE_NAMES = new Set([
+  'any', 'boolean', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
+  'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally',
+  'for', 'function', 'if', 'implements', 'import', 'in', 'instanceof', 'interface',
+  'let', 'new', 'null', 'number', 'package', 'private', 'protected', 'public', 'return',
+  'static', 'string', 'super', 'switch', 'this', 'throw', 'true', 'try', 'type',
+  'typeof', 'undefined', 'unknown', 'var', 'void', 'while', 'with', 'yield',
+]);
+
+function sanitizeTypeName(value: string, fallback = 'Type'): string {
+  const words = value.trim().split(/[^A-Za-z0-9_$]+/).filter(Boolean);
+  let result = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join('') || fallback;
+  if (!/^[A-Za-z_$]/.test(result)) result = `T${result}`;
+  if (RESERVED_TYPE_NAMES.has(result.toLowerCase())) result = `${result}Type`;
+  return result;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+class TypeScriptGenerator {
+  private declarations: string[] = [];
+  private usedNames = new Map<string, number>();
+
+  generate(value: unknown, requestedRootName: string): string {
+    const rootName = this.reserveName(sanitizeTypeName(requestedRootName || 'Root', 'Root'));
+    if (isJsonObject(value)) {
+      this.createObjectType([value], rootName, true);
     } else {
-      lines.push(`${pad}export type ${name} = ${itemType}[];`);
+      const type = Array.isArray(value)
+        ? this.inferArrayType(value, `${rootName}Item`)
+        : this.inferType([value], `${rootName}Value`);
+      this.declarations.push(`export type ${rootName} = ${type};`);
     }
-    return lines.join('\n');
+    return this.declarations.join('\n\n');
   }
 
-  if (typeof json === 'object' && json !== null) {
-    const nestedInterfaces: string[] = [];
-    lines.push(`${pad}export interface ${name} {`);
-
-    for (const [key, value] of Object.entries(json)) {
-      const safeName = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `"${key}"`;
-      const isNullable = value === null;
-
-      if (isNullable) {
-        lines.push(`${pad}  ${safeName}: unknown;`);
-      } else if (Array.isArray(value)) {
-        if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
-          const nestedName = capitalize(key) + 'Item';
-          nestedInterfaces.push(jsonToTs(value[0], nestedName, indent));
-          lines.push(`${pad}  ${safeName}: ${nestedName}[];`);
-        } else if (value.length > 0) {
-          lines.push(`${pad}  ${safeName}: ${inferTypeFromValue(value[0], key, indent)}[];`);
-        } else {
-          lines.push(`${pad}  ${safeName}: unknown[];`);
-        }
-      } else if (typeof value === 'object') {
-        const nestedName = capitalize(key);
-        nestedInterfaces.push(jsonToTs(value, nestedName, indent));
-        lines.push(`${pad}  ${safeName}: ${nestedName};`);
-      } else {
-        lines.push(`${pad}  ${safeName}: ${inferTypeFromValue(value, key, indent)};`);
-      }
-    }
-
-    lines.push(`${pad}}`);
-
-    if (nestedInterfaces.length > 0) {
-      return [...nestedInterfaces, '', ...lines].join('\n');
-    }
-    return lines.join('\n');
+  private reserveName(preferredName: string): string {
+    const baseName = sanitizeTypeName(preferredName);
+    const count = this.usedNames.get(baseName) ?? 0;
+    this.usedNames.set(baseName, count + 1);
+    return count === 0 ? baseName : `${baseName}${count + 1}`;
   }
 
-  return `${pad}export type ${name} = ${typeof json};`;
+  private createObjectType(objects: JsonObject[], preferredName: string, nameIsReserved = false): string {
+    const name = nameIsReserved ? preferredName : this.reserveName(preferredName);
+    const keys = Array.from(new Set(objects.flatMap((object) => Object.keys(object))));
+    const properties = keys.map((key) => {
+      const values = objects
+        .filter((object) => Object.prototype.hasOwnProperty.call(object, key))
+        .map((object) => object[key]);
+      const optional = values.length < objects.length;
+      const propertyName = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key);
+      const type = this.inferType(values, sanitizeTypeName(key, 'Value'));
+      return `  ${propertyName}${optional ? '?' : ''}: ${type};`;
+    });
+    this.declarations.push([
+      `export interface ${name} {`,
+      ...properties,
+      '}',
+    ].join('\n'));
+    return name;
+  }
+
+  private inferType(values: unknown[], preferredName: string): string {
+    const types: string[] = [];
+    const addType = (type: string) => {
+      if (!types.includes(type)) types.push(type);
+    };
+
+    const objects = values.filter(isJsonObject);
+    if (objects.length > 0) addType(this.createObjectType(objects, preferredName));
+
+    const arrays = values.filter(Array.isArray);
+    if (arrays.length > 0) {
+      addType(this.inferArrayType(arrays.flat(), `${preferredName}Item`));
+    }
+
+    values.forEach((value) => {
+      if (value === null) addType('null');
+      else if (typeof value === 'string') addType('string');
+      else if (typeof value === 'number') addType('number');
+      else if (typeof value === 'boolean') addType('boolean');
+    });
+
+    return types.length > 0 ? types.join(' | ') : 'unknown';
+  }
+
+  private inferArrayType(values: unknown[], preferredItemName: string): string {
+    if (values.length === 0) return 'unknown[]';
+    const itemType = this.inferType(values, preferredItemName);
+    return itemType.includes(' | ') ? `(${itemType})[]` : `${itemType}[]`;
+  }
 }
 
-function inferTypeFromValue(value: unknown, _name: string, _indent: number): string {
-  if (value === null) return 'unknown';
-  if (typeof value === 'string') return 'string';
-  if (typeof value === 'number') return 'number';
-  if (typeof value === 'boolean') return 'boolean';
-  if (Array.isArray(value)) return 'unknown[]';
-  if (typeof value === 'object') return capitalize(_name);
-  return 'unknown';
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function jsonToTs(json: unknown, name: string): string {
+  return new TypeScriptGenerator().generate(json, name);
 }
 
 export default function JsonToTypescript() {
@@ -136,7 +165,7 @@ export default function JsonToTypescript() {
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: '' };
     try {
-      const parsed = JSON.parse(input);
+      const parsed = JSON.parse(input.replace(/^\uFEFF/, ''));
       return { output: jsonToTs(parsed, rootName || 'Root'), error: '' };
     } catch (e) {
       return { output: '', error: (e as Error).message };
@@ -154,6 +183,15 @@ export default function JsonToTypescript() {
       setInput(text);
     } catch {
       enqueueSnackbar('Failed to paste', { variant: 'error' });
+    }
+  };
+
+  const handleDownload = () => {
+    try {
+      downloadFile('types.ts', output, 'text/plain');
+      enqueueSnackbar('File downloaded', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to download file', { variant: 'error' });
     }
   };
 
@@ -185,21 +223,20 @@ export default function JsonToTypescript() {
             bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.01),
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600 }}>Root name:</Typography>
-            <input
+          <Box sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            <TextField
+              label="Root type name"
+              size="small"
               value={rootName}
               onChange={(e) => setRootName(e.target.value)}
-              style={{
-                border: '1px solid',
-                borderColor: 'inherit',
-                borderRadius: 4,
-                padding: '4px 8px',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                fontSize: '0.8125rem',
-                width: 120,
-                backgroundColor: 'transparent',
-                color: 'inherit',
+              sx={{ width: { xs: '100%', sm: 180 } }}
+              slotProps={{
+                htmlInput: {
+                  style: {
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                    fontSize: '0.8125rem',
+                  },
+                },
               }}
             />
           </Box>
@@ -207,19 +244,29 @@ export default function JsonToTypescript() {
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Paste JSON">
-            <IconButton size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Paste JSON" size="small" onClick={handlePaste} sx={{ color: 'text.secondary' }}>
               <ContentPasteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Clear">
-            <IconButton size="small" onClick={() => setInput('')} disabled={!input} sx={{ color: 'text.secondary' }}>
+            <IconButton aria-label="Clear JSON input" size="small" onClick={() => setInput('')} disabled={!input} sx={{ color: 'text.secondary' }}>
               <ClearIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
 
         {error && (
-          <Chip label={`JSON Error: ${error}`} color="error" variant="outlined" size="small" sx={{ alignSelf: 'flex-start' }} />
+          <Chip
+            label={`JSON Error: ${error}`}
+            color="error"
+            variant="outlined"
+            size="small"
+            sx={{
+              alignSelf: 'flex-start',
+              maxWidth: '100%',
+              '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
+            }}
+          />
         )}
 
         {!error && output && (
@@ -245,14 +292,15 @@ export default function JsonToTypescript() {
                 TypeScript Output
               </Typography>
               <Tooltip title="Copy">
-                <IconButton size="small" onClick={handleCopy} disabled={!output} sx={{ color: 'text.secondary' }}>
+                <IconButton aria-label="Copy TypeScript output" size="small" onClick={handleCopy} disabled={!output} sx={{ color: 'text.secondary' }}>
                   <ContentCopyIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Download">
                 <IconButton
                   size="small"
-                  onClick={() => downloadFile('types.ts', output, 'text/plain')}
+                  aria-label="Download TypeScript output"
+                  onClick={handleDownload}
                   disabled={!output}
                   sx={{ color: 'text.secondary' }}
                 >

@@ -43,62 +43,90 @@ interface ChatMessage {
   content: string;
 }
 
+function asRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be a JSON object`);
+  return value as Record<string, unknown>;
+}
+
+function contentToText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === 'string') return part;
+      if (part && typeof part === 'object') {
+        const record = part as Record<string, unknown>;
+        if (typeof record.text === 'string') return record.text;
+        if (typeof record.content === 'string') return record.content;
+      }
+      return JSON.stringify(part);
+    }).join('\n');
+  }
+  return content == null ? '' : JSON.stringify(content);
+}
+
+function parseMessages(value: unknown, label = 'messages'): ChatMessage[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((message, index) => {
+    const record = asRecord(message, `${label}[${index}]`);
+    if (typeof record.role !== 'string') throw new Error(`${label}[${index}].role must be a string`);
+    return { role: record.role, content: contentToText(record.content) };
+  });
+}
+
 function parseOpenAI(json: Record<string, unknown>): { messages: ChatMessage[]; model: string; temperature: number; maxTokens: number } {
-  const messages = ((json.messages as ChatMessage[]) || []).map((m) => ({
-    role: m.role,
-    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-  }));
+  const messages = parseMessages(json.messages);
   return {
     messages,
     model: (json.model as string) || 'gpt-4o',
     temperature: (json.temperature as number) ?? 0.7,
-    maxTokens: (json.max_tokens as number) || 1024,
+    maxTokens: (json.max_tokens as number) ?? 1024,
   };
 }
 
 function parseAnthropic(json: Record<string, unknown>): { messages: ChatMessage[]; model: string; temperature: number; maxTokens: number } {
-  const messages = ((json.messages as ChatMessage[]) || []).map((m) => ({
-    role: m.role,
-    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-  }));
-  const system = json.system as string;
+  const messages = parseMessages(json.messages);
+  const system = contentToText(json.system);
   if (system) messages.unshift({ role: 'system', content: system });
   return {
     messages,
     model: (json.model as string) || 'claude-3.5-sonnet',
     temperature: (json.temperature as number) ?? 0.7,
-    maxTokens: (json.max_tokens as number) || 1024,
+    maxTokens: (json.max_tokens as number) ?? 1024,
   };
 }
 
 function parseGemini(json: Record<string, unknown>): { messages: ChatMessage[]; model: string; temperature: number; maxTokens: number } {
-  const contents = (json.contents as Array<{ role: string; parts: Array<{ text: string }> }>) || [];
-  const messages = contents.map((c) => ({
-    role: c.role === 'model' ? 'assistant' : c.role,
-    content: c.parts?.map((p) => p.text).join('\n') || '',
-  }));
-  const sysInst = json.systemInstruction as { parts?: Array<{ text: string }> };
-  if (sysInst?.parts) messages.unshift({ role: 'system', content: sysInst.parts.map((p) => p.text).join('\n') });
+  if (!Array.isArray(json.contents)) throw new Error('contents must be an array');
+  const messages = json.contents.map((content, index) => {
+    const record = asRecord(content, `contents[${index}]`);
+    if (typeof record.role !== 'string') throw new Error(`contents[${index}].role must be a string`);
+    return {
+      role: record.role === 'model' ? 'assistant' : record.role,
+      content: contentToText(record.parts),
+    };
+  });
+  const sysInst = json.systemInstruction;
+  if (sysInst && typeof sysInst === 'object' && !Array.isArray(sysInst)) {
+    const systemText = contentToText((sysInst as Record<string, unknown>).parts);
+    if (systemText) messages.unshift({ role: 'system', content: systemText });
+  }
   const genConfig = (json.generationConfig as Record<string, unknown>) || {};
   return {
     messages,
     model: 'gemini-2.5-pro',
     temperature: (genConfig.temperature as number) ?? 0.7,
-    maxTokens: (genConfig.maxOutputTokens as number) || 1024,
+    maxTokens: (genConfig.maxOutputTokens as number) ?? 1024,
   };
 }
 
 function parseOllama(json: Record<string, unknown>): { messages: ChatMessage[]; model: string; temperature: number; maxTokens: number } {
-  const messages = ((json.messages as ChatMessage[]) || []).map((m) => ({
-    role: m.role,
-    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-  }));
+  const messages = parseMessages(json.messages);
   const opts = (json.options as Record<string, unknown>) || {};
   return {
     messages,
     model: (json.model as string) || 'llama3.1',
     temperature: (opts.temperature as number) ?? 0.7,
-    maxTokens: (opts.num_predict as number) || 1024,
+    maxTokens: (opts.num_predict as number) ?? 1024,
   };
 }
 
@@ -171,7 +199,7 @@ export default function ApiFormatConverter() {
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: '' };
     try {
-      const json = JSON.parse(input);
+      const json = asRecord(JSON.parse(input), 'Input');
       const parsed = PARSERS[FORMATS[fromFormat]](json);
       const result = SERIALIZERS[FORMATS[toFormat]](parsed);
       return { output: result, error: '' };

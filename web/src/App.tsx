@@ -1,7 +1,9 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Link, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
-import { lazy, Suspense } from 'react';
-import { CircularProgress, Box } from '@mui/material';
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import { Button, Stack, Typography } from '@mui/material';
+import { tools, type ToolPath } from './data/tools';
+import PageHead from './components/PageHead';
 
 const Home = lazy(() => import('./pages/Home'));
 const JsonFormatter = lazy(() => import('./pages/tools/JsonFormatter'));
@@ -47,73 +49,98 @@ const ModelContextWindow = lazy(() => import('./pages/tools/ModelContextWindow')
 const TiktokenPlayground = lazy(() => import('./pages/tools/TiktokenPlayground'));
 const OpenApiToMcp = lazy(() => import('./pages/tools/OpenApiToMcp'));
 
-function Loading() {
+type LazyPage = LazyExoticComponent<ComponentType>;
+
+const toolRoutes = {
+  '/json-formatter': JsonFormatter,
+  '/yaml-validator': YamlValidator,
+  '/jwt': JwtDecoder,
+  '/text-compare': TextCompare,
+  '/encode-decode': EncodeDecode,
+  '/csv-delimiter': CsvDelimiter,
+  '/cron': CronTester,
+  '/json-yaml': JsonYamlConverter,
+  '/uuid': UuidGenerator,
+  '/hash': HashGenerator,
+  '/base64-image': Base64ImageEncoder,
+  '/color-converter': ColorConverter,
+  '/regex': RegexTester,
+  '/lorem-ipsum': LoremIpsumGenerator,
+  '/markdown': MarkdownPreview,
+  '/url-parser': UrlParser,
+  '/timestamp': TimestampConverter,
+  '/qr-code': QrCodeGenerator,
+  '/html-entities': HtmlEntityEncoder,
+  '/sql-formatter': SqlFormatter,
+  '/json-to-typescript': JsonToTypescript,
+  '/token-counter': TokenCounter,
+  '/ai-pricing': AiPricingCalculator,
+  '/prompt-editor': PromptTemplateEditor,
+  '/prompt-diff': PromptDiff,
+  '/api-format': ApiFormatConverter,
+  '/function-schema': FunctionCallBuilder,
+  '/text-chunker': TextChunker,
+  '/embeddings': EmbeddingVisualizer,
+  '/structured-output': StructuredOutputValidator,
+  '/css-minifier': CssMinifier,
+  '/json-path': JsonPathEvaluator,
+  '/cron-translator': CronTranslator,
+  '/diff-patch': DiffToPatch,
+  '/base-converter': BaseConverter,
+  '/chmod': ChmodCalculator,
+  '/http-status': HttpStatusCodes,
+  '/cidr': CidrCalculator,
+  '/context-windows': ModelContextWindow,
+  '/tiktoken': TiktokenPlayground,
+  '/openapi-to-mcp': OpenApiToMcp,
+} satisfies Record<ToolPath, LazyPage>;
+
+const legacyRoutes: ReadonlyArray<{ from: string; to: ToolPath }> = [
+  { from: '/jsonFormatter', to: '/json-formatter' },
+  { from: '/yaml-schema-validator', to: '/yaml-validator' },
+  { from: '/textCompare', to: '/text-compare' },
+  { from: '/change-csv-delimiter', to: '/csv-delimiter' },
+  { from: '/NCrontab', to: '/cron' },
+  { from: '/jsonToYaml', to: '/json-yaml' },
+  { from: '/yamlToJson', to: '/json-yaml' },
+];
+
+function NotFound() {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-      <CircularProgress />
-    </Box>
+    <Stack spacing={2} sx={{ alignItems: 'center', py: { xs: 8, md: 12 }, textAlign: 'center' }}>
+      <PageHead
+        title="Page Not Found - Bites In Byte"
+        description="The requested Bites In Byte page could not be found."
+        noIndex
+      />
+      <Typography component="h1" variant="h3">
+        Page not found
+      </Typography>
+      <Typography color="text.secondary">
+        The page may have moved, or the address may be incorrect.
+      </Typography>
+      <Button component={Link} to="/" variant="contained">
+        Browse all tools
+      </Button>
+    </Stack>
   );
 }
 
 export default function App() {
   return (
-    <Suspense fallback={<Loading />}>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
-          {/* New clean routes */}
-          <Route path="/json-formatter" element={<JsonFormatter />} />
-          <Route path="/yaml-validator" element={<YamlValidator />} />
-          <Route path="/jwt" element={<JwtDecoder />} />
-          <Route path="/text-compare" element={<TextCompare />} />
-          <Route path="/encode-decode" element={<EncodeDecode />} />
-          <Route path="/csv-delimiter" element={<CsvDelimiter />} />
-          <Route path="/cron" element={<CronTester />} />
-          <Route path="/json-yaml" element={<JsonYamlConverter />} />
-          <Route path="/uuid" element={<UuidGenerator />} />
-          <Route path="/hash" element={<HashGenerator />} />
-          <Route path="/base64-image" element={<Base64ImageEncoder />} />
-          <Route path="/color-converter" element={<ColorConverter />} />
-          <Route path="/regex" element={<RegexTester />} />
-          <Route path="/lorem-ipsum" element={<LoremIpsumGenerator />} />
-          <Route path="/markdown" element={<MarkdownPreview />} />
-          <Route path="/url-parser" element={<UrlParser />} />
-          <Route path="/timestamp" element={<TimestampConverter />} />
-          <Route path="/qr-code" element={<QrCodeGenerator />} />
-          <Route path="/html-entities" element={<HtmlEntityEncoder />} />
-          <Route path="/sql-formatter" element={<SqlFormatter />} />
-          <Route path="/json-to-typescript" element={<JsonToTypescript />} />
-          <Route path="/token-counter" element={<TokenCounter />} />
-          <Route path="/ai-pricing" element={<AiPricingCalculator />} />
-          <Route path="/prompt-editor" element={<PromptTemplateEditor />} />
-          <Route path="/prompt-diff" element={<PromptDiff />} />
-          <Route path="/api-format" element={<ApiFormatConverter />} />
-          <Route path="/function-schema" element={<FunctionCallBuilder />} />
-          <Route path="/text-chunker" element={<TextChunker />} />
-          <Route path="/embeddings" element={<EmbeddingVisualizer />} />
-          <Route path="/structured-output" element={<StructuredOutputValidator />} />
-          <Route path="/css-minifier" element={<CssMinifier />} />
-          <Route path="/json-path" element={<JsonPathEvaluator />} />
-          <Route path="/cron-translator" element={<CronTranslator />} />
-          <Route path="/diff-patch" element={<DiffToPatch />} />
-          <Route path="/base-converter" element={<BaseConverter />} />
-          <Route path="/chmod" element={<ChmodCalculator />} />
-          <Route path="/http-status" element={<HttpStatusCodes />} />
-          <Route path="/cidr" element={<CidrCalculator />} />
-          <Route path="/context-windows" element={<ModelContextWindow />} />
-          <Route path="/tiktoken" element={<TiktokenPlayground />} />
-          <Route path="/openapi-to-mcp" element={<OpenApiToMcp />} />
-          {/* Legacy redirects for old URLs */}
-          <Route path="/jsonFormatter" element={<JsonFormatter />} />
-          <Route path="/yaml-schema-validator" element={<YamlValidator />} />
-          <Route path="/textCompare" element={<TextCompare />} />
-          <Route path="/change-csv-delimiter" element={<CsvDelimiter />} />
-          <Route path="/NCrontab" element={<CronTester />} />
-          <Route path="/jsonToYaml" element={<JsonYamlConverter />} />
-          <Route path="/yamlToJson" element={<JsonYamlConverter />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<Home />} />
+        {tools.map(({ href }) => {
+          const Page = toolRoutes[href];
+          return <Route key={href} path={href} element={<Page />} />;
+        })}
+        {legacyRoutes.map(({ from, to }) => (
+          <Route key={from} path={from} element={<Navigate to={to} replace />} />
+        ))}
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
   );
 }

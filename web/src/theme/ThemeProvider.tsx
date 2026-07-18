@@ -11,6 +11,8 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType>({ mode: 'dark', toggleTheme: () => {} });
 
+// The hook intentionally lives beside its provider so consumers share the same context instance.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useThemeMode = () => useContext(ThemeContext);
 
 /* ── Zinc palette (shadcn/ui style) ─────────────────────────── */
@@ -28,15 +30,29 @@ const zinc = {
   950: '#09090b',
 };
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('theme-mode');
+function getInitialMode(): ThemeMode {
+  try {
+    const saved = window.localStorage.getItem('theme-mode');
     if (saved === 'light' || saved === 'dark') return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  } catch {
+    // Storage may be unavailable in privacy-restricted browsing contexts.
+  }
+
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [mode, setMode] = useState<ThemeMode>(getInitialMode);
 
   useEffect(() => {
-    localStorage.setItem('theme-mode', mode);
+    document.documentElement.style.colorScheme = mode;
+    try {
+      window.localStorage.setItem('theme-mode', mode);
+    } catch {
+      // Keep the selected theme for this session when storage is unavailable.
+    }
   }, [mode]);
 
   const toggleTheme = () => setMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -190,6 +206,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         'html, body': {
           scrollBehavior: 'smooth',
         },
+        'a, button, [tabindex]:not([tabindex="-1"])': {
+          '&:focus-visible': {
+            outline: '2px solid currentColor',
+            outlineOffset: 2,
+          },
+        },
         '::selection': {
           backgroundColor: mode === 'dark' ? alpha(zinc[50], 0.15) : alpha(zinc[900], 0.12),
         },
@@ -209,6 +231,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           },
           '50%': {
             boxShadow: `0 0 40px ${alpha(mode === 'dark' ? zinc[50] : zinc[900], 0.1)}`,
+          },
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          'html, body': {
+            scrollBehavior: 'auto',
+          },
+          '*, *::before, *::after': {
+            animationDuration: '0.01ms !important',
+            animationIterationCount: '1 !important',
+            transitionDuration: '0.01ms !important',
           },
         },
       }}

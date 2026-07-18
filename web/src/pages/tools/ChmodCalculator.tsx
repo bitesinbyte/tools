@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { Fragment, useState, useCallback } from 'react';
 import {
   Typography,
   Stack,
@@ -26,7 +26,11 @@ interface Permissions {
   owner: [boolean, boolean, boolean];
   group: [boolean, boolean, boolean];
   others: [boolean, boolean, boolean];
+  setuid: boolean;
+  setgid: boolean;
+  sticky: boolean;
 }
+type PermissionEntity = 'owner' | 'group' | 'others';
 
 const PRESETS: { label: string; value: string; description: string }[] = [
   { label: '777', value: '777', description: 'Full access' },
@@ -38,43 +42,53 @@ const PRESETS: { label: string; value: string; description: string }[] = [
 ];
 
 function octalToPermissions(octal: string): Permissions | null {
-  if (!/^[0-7]{3}$/.test(octal)) return null;
-  const digits = octal.split('').map(Number);
+  if (!/^[0-7]{3,4}$/.test(octal)) return null;
+  const digits = octal.padStart(4, '0').split('').map(Number);
   const toBools = (digit: number): [boolean, boolean, boolean] => [
     (digit & 4) !== 0,
     (digit & 2) !== 0,
     (digit & 1) !== 0,
   ];
   return {
-    owner: toBools(digits[0]),
-    group: toBools(digits[1]),
-    others: toBools(digits[2]),
+    owner: toBools(digits[1]),
+    group: toBools(digits[2]),
+    others: toBools(digits[3]),
+    setuid: (digits[0] & 4) !== 0,
+    setgid: (digits[0] & 2) !== 0,
+    sticky: (digits[0] & 1) !== 0,
   };
 }
 
 function permissionsToOctal(perms: Permissions): string {
   const toDigit = (bools: [boolean, boolean, boolean]): number =>
     PERMISSION_BITS.reduce((acc, bit, i) => acc + (bools[i] ? bit : 0), 0);
-  return `${toDigit(perms.owner)}${toDigit(perms.group)}${toDigit(perms.others)}`;
+  const special = (perms.setuid ? 4 : 0) + (perms.setgid ? 2 : 0) + (perms.sticky ? 1 : 0);
+  const basic = `${toDigit(perms.owner)}${toDigit(perms.group)}${toDigit(perms.others)}`;
+  return special ? `${special}${basic}` : basic;
 }
 
 function permissionsToSymbolic(perms: Permissions): string {
-  const toStr = (bools: [boolean, boolean, boolean]): string =>
-    (bools[0] ? 'r' : '-') + (bools[1] ? 'w' : '-') + (bools[2] ? 'x' : '-');
-  return toStr(perms.owner) + toStr(perms.group) + toStr(perms.others);
+  const toStr = (bools: [boolean, boolean, boolean], special: boolean, specialChar: 's' | 't'): string =>
+    (bools[0] ? 'r' : '-') +
+    (bools[1] ? 'w' : '-') +
+    (special ? (bools[2] ? specialChar : specialChar.toUpperCase()) : (bools[2] ? 'x' : '-'));
+  return toStr(perms.owner, perms.setuid, 's') +
+    toStr(perms.group, perms.setgid, 's') +
+    toStr(perms.others, perms.sticky, 't');
 }
 
 function symbolicToPermissions(symbolic: string): Permissions | null {
-  if (!/^[rwx-]{9}$/.test(symbolic)) return null;
+  if (!/^[r-][w-][xSs-][r-][w-][xSs-][r-][w-][xTt-]$/.test(symbolic)) return null;
   const toBools = (s: string): [boolean, boolean, boolean] => [
-    s[0] === 'r',
-    s[1] === 'w',
-    s[2] === 'x',
+    s[0] === 'r', s[1] === 'w', /[xst]/.test(s[2]),
   ];
   return {
     owner: toBools(symbolic.slice(0, 3)),
     group: toBools(symbolic.slice(3, 6)),
     others: toBools(symbolic.slice(6, 9)),
+    setuid: /[sS]/.test(symbolic[2]),
+    setgid: /[sS]/.test(symbolic[5]),
+    sticky: /[tT]/.test(symbolic[8]),
   };
 }
 
@@ -82,6 +96,9 @@ const DEFAULT_PERMS: Permissions = {
   owner: [true, true, true],
   group: [true, false, true],
   others: [true, false, true],
+  setuid: false,
+  setgid: false,
+  sticky: false,
 };
 
 export default function ChmodCalculator() {
@@ -105,7 +122,7 @@ export default function ChmodCalculator() {
 
   const handleOctalChange = (value: string) => {
     setOctalInput(value);
-    if (/^[0-7]{3}$/.test(value)) {
+    if (/^[0-7]{3,4}$/.test(value)) {
       const perms = octalToPermissions(value);
       if (perms) {
         setPermissions(perms);
@@ -116,7 +133,7 @@ export default function ChmodCalculator() {
 
   const handleSymbolicChange = (value: string) => {
     setSymbolicInput(value);
-    if (/^[rwx-]{9}$/.test(value)) {
+    if (/^[r-][w-][xSs-][r-][w-][xSs-][r-][w-][xTt-]$/.test(value)) {
       const perms = symbolicToPermissions(value);
       if (perms) {
         setPermissions(perms);
@@ -126,7 +143,7 @@ export default function ChmodCalculator() {
   };
 
   const handleCheckboxChange = (
-    entity: keyof Permissions,
+    entity: PermissionEntity,
     permIndex: number,
     checked: boolean,
   ) => {
@@ -149,9 +166,9 @@ export default function ChmodCalculator() {
     });
   };
 
-  const entities: (keyof Permissions)[] = ['owner', 'group', 'others'];
+  const entities: PermissionEntity[] = ['owner', 'group', 'others'];
 
-  const descriptions: Record<keyof Permissions, string> = {
+  const descriptions: Record<PermissionEntity, string> = {
     owner: 'The user who owns the file. Typically the creator.',
     group: 'Users who are members of the file\u2019s group.',
     others: 'All other users on the system.',
@@ -198,6 +215,25 @@ export default function ChmodCalculator() {
                 color={octal === preset.value ? 'primary' : 'default'}
                 size="small"
                 sx={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+              />
+            ))}
+          </Box>
+          <Box sx={{ px: 2, pb: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            {([
+              ['setuid', 'Setuid (4)'],
+              ['setgid', 'Setgid (2)'],
+              ['sticky', 'Sticky (1)'],
+            ] as const).map(([key, label]) => (
+              <FormControlLabel
+                key={key}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={permissions[key]}
+                    onChange={(e) => updateFromPermissions({ ...permissions, [key]: e.target.checked })}
+                  />
+                }
+                label={<Typography sx={{ fontSize: '0.8125rem' }}>{label}</Typography>}
               />
             ))}
           </Box>
@@ -248,8 +284,8 @@ export default function ChmodCalculator() {
 
               {/* Permission rows */}
               {entities.map((entity, entityIdx) => (
-                <>
-                  <Grid size={{ xs: 3 }} key={`${entity}-label`}>
+                <Fragment key={entity}>
+                  <Grid size={{ xs: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
                       <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                         {ENTITY_LABELS[entityIdx]}
@@ -287,7 +323,7 @@ export default function ChmodCalculator() {
                       </Box>
                     </Grid>
                   ))}
-                </>
+                </Fragment>
               ))}
             </Grid>
           </Box>
@@ -335,11 +371,11 @@ export default function ChmodCalculator() {
                   onChange={(e) => handleOctalChange(e.target.value)}
                   placeholder="755"
                   size="small"
-                  error={!/^[0-7]{0,3}$/.test(octalInput)}
+                  error={octalInput.length > 0 && !/^[0-7]{3,4}$/.test(octalInput)}
                   helperText={
-                    !/^[0-7]{0,3}$/.test(octalInput)
-                      ? 'Enter a 3-digit octal number (0-7)'
-                      : 'Three octal digits: owner, group, others'
+                    octalInput.length > 0 && !/^[0-7]{3,4}$/.test(octalInput)
+                      ? 'Enter 3 digits, or 4 digits including special bits'
+                      : 'Optional leading digit: setuid (4), setgid (2), sticky (1)'
                   }
                   slotProps={{
                     input: {
@@ -351,7 +387,7 @@ export default function ChmodCalculator() {
                       },
                     },
                     htmlInput: {
-                      maxLength: 3,
+                      maxLength: 4,
                     },
                   }}
                 />
@@ -402,9 +438,9 @@ export default function ChmodCalculator() {
                   error={
                     symbolicInput.length > 0 &&
                     symbolicInput.length === 9 &&
-                    !/^[rwx-]{9}$/.test(symbolicInput)
+                    !/^[r-][w-][xSs-][r-][w-][xSs-][r-][w-][xTt-]$/.test(symbolicInput)
                   }
-                  helperText="9 characters using r, w, x, or -"
+                  helperText="9 characters; s/S and t/T represent special bits"
                   slotProps={{
                     input: {
                       sx: {
@@ -511,10 +547,7 @@ export default function ChmodCalculator() {
                 (acc, bit, idx) => acc + (perms[idx] ? bit : 0),
                 0,
               );
-              const symbolicStr =
-                (perms[0] ? 'r' : '-') +
-                (perms[1] ? 'w' : '-') +
-                (perms[2] ? 'x' : '-');
+              const symbolicStr = symbolic.slice(i * 3, i * 3 + 3);
               const abilities = [
                 perms[0] && 'read',
                 perms[1] && 'write',

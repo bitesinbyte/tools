@@ -29,6 +29,53 @@ function isValidIp(ip: string): boolean {
   });
 }
 
+function parseIpv6(ip: string): bigint | null {
+  let input = ip.toLowerCase();
+  const zoneIndex = input.indexOf('%');
+  if (zoneIndex >= 0) input = input.slice(0, zoneIndex);
+  if (!input || (input.match(/::/g)?.length ?? 0) > 1) return null;
+
+  const convertIpv4Tail = (parts: string[]): string[] | null => {
+    const last = parts.at(-1);
+    if (!last?.includes('.')) return parts;
+    if (!isValidIp(last)) return null;
+    const value = ipToUint32(last);
+    return [...parts.slice(0, -1), ((value >>> 16) & 0xffff).toString(16), (value & 0xffff).toString(16)];
+  };
+
+  const [leftRaw, rightRaw = ''] = input.split('::');
+  const left = convertIpv4Tail(leftRaw ? leftRaw.split(':') : []);
+  const right = convertIpv4Tail(rightRaw ? rightRaw.split(':') : []);
+  if (!left || !right || [...left, ...right].some((part) => !/^[0-9a-f]{1,4}$/.test(part))) return null;
+  const missing = 8 - left.length - right.length;
+  if (input.includes('::') ? missing < 1 : missing !== 0) return null;
+  const parts = [...left, ...Array.from({ length: Math.max(0, missing) }, () => '0'), ...right];
+  if (parts.length !== 8) return null;
+  return parts.reduce((value, part) => (value << 16n) | BigInt(parseInt(part, 16)), 0n);
+}
+
+function formatIpv6(value: bigint): string {
+  const parts = Array.from({ length: 8 }, (_, index) =>
+    Number((value >> BigInt((7 - index) * 16)) & 0xffffn).toString(16),
+  );
+  let bestStart = -1;
+  let bestLength = 0;
+  for (let i = 0; i < parts.length;) {
+    if (parts[i] !== '0') { i++; continue; }
+    let end = i;
+    while (end < parts.length && parts[end] === '0') end++;
+    if (end - i > bestLength && end - i >= 2) {
+      bestStart = i;
+      bestLength = end - i;
+    }
+    i = end;
+  }
+  if (bestStart < 0) return parts.join(':');
+  const left = parts.slice(0, bestStart).join(':');
+  const right = parts.slice(bestStart + bestLength).join(':');
+  return `${left}::${right}`;
+}
+
 function ipToUint32(ip: string): number {
   const parts = ip.split('.').map(Number);
   return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
@@ -78,14 +125,15 @@ function isPrivateIp(ip: number): boolean {
 }
 
 interface CidrResult {
+  family: 'IPv4' | 'IPv6';
   networkAddress: string;
   broadcastAddress: string;
   firstHost: string;
   lastHost: string;
   subnetMask: string;
   wildcardMask: string;
-  totalAddresses: number;
-  usableHosts: number;
+  totalAddresses: bigint;
+  usableHosts: bigint;
   ipClass: string;
   binaryMask: string;
   isPrivate: boolean;
@@ -124,14 +172,15 @@ function calculateCidr(ip: string, prefix: number): CidrResult | null {
   const firstOctet = (ipNum >>> 24) & 0xff;
 
   return {
+    family: 'IPv4',
     networkAddress: uint32ToIp(network),
     broadcastAddress: uint32ToIp(broadcast),
     firstHost,
     lastHost,
     subnetMask: uint32ToIp(mask),
     wildcardMask: uint32ToIp(wildcard),
-    totalAddresses,
-    usableHosts,
+    totalAddresses: BigInt(totalAddresses),
+    usableHosts: BigInt(usableHosts),
     ipClass: getIpClass(firstOctet),
     binaryMask: maskToBinary(mask),
     isPrivate: isPrivateIp(ipNum),
@@ -139,14 +188,51 @@ function calculateCidr(ip: string, prefix: number): CidrResult | null {
   };
 }
 
+function calculateIpv6Cidr(ip: string, prefix: number): CidrResult | null {
+  const ipNum = parseIpv6(ip);
+  if (ipNum === null || prefix < 0 || prefix > 128 || !Number.isInteger(prefix)) return null;
+  const hostBits = 128 - prefix;
+  const allBits = (1n << 128n) - 1n;
+  const mask = prefix === 0 ? 0n : (allBits << BigInt(hostBits)) & allBits;
+  const network = ipNum & mask;
+  const last = network | (allBits ^ mask);
+  const total = 1n << BigInt(hostBits);
+  const firstHextet = Number(ipNum >> 120n);
+  const isPrivate = (firstHextet & 0xfe) === 0xfc;
+  return {
+    family: 'IPv6',
+    networkAddress: formatIpv6(network),
+    broadcastAddress: 'Not applicable',
+    firstHost: formatIpv6(network),
+    lastHost: formatIpv6(last),
+    subnetMask: formatIpv6(mask),
+    wildcardMask: formatIpv6(allBits ^ mask),
+    totalAddresses: total,
+    usableHosts: total,
+    ipClass: 'Not applicable',
+    binaryMask: mask.toString(2).padStart(128, '0').replace(/(.{16})(?=.)/g, '$1:'),
+    isPrivate,
+    prefix,
+  };
+}
+
 function parseCidrNotation(input: string): { ip: string; prefix: number } | null {
   const trimmed = input.trim();
-  const match = trimmed.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/);
+  const match = trimmed.match(/^(.+)\/(\d{1,3})$/);
   if (!match) return null;
   const ip = match[1];
   const prefix = parseInt(match[2], 10);
-  if (!isValidIp(ip) || prefix < 0 || prefix > 32) return null;
+  const max = isValidIp(ip) ? 32 : parseIpv6(ip) !== null ? 128 : -1;
+  if (prefix < 0 || prefix > max) return null;
   return { ip, prefix };
+}
+
+function calculateForIp(ip: string, prefix: number): CidrResult | null {
+  return isValidIp(ip) ? calculateCidr(ip, prefix) : calculateIpv6Cidr(ip, prefix);
+}
+
+function isValidAnyIp(ip: string): boolean {
+  return isValidIp(ip) || parseIpv6(ip) !== null;
 }
 
 // ─── Reference table data ─────────────────────────────────────────────────────
@@ -170,6 +256,8 @@ const PRESETS = [
   { label: '172.16.0.0/12', value: '172.16.0.0/12' },
   { label: '192.168.0.0/16', value: '192.168.0.0/16' },
   { label: '192.168.1.0/24', value: '192.168.1.0/24' },
+  { label: '2001:db8::/32', value: '2001:db8::/32' },
+  { label: 'fd00::/8', value: 'fd00::/8' },
 ];
 
 const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
@@ -189,10 +277,10 @@ export default function CidrCalculator() {
     if (mode === 'cidr') {
       const parsed = parseCidrNotation(cidrInput);
       if (!parsed) return null;
-      return calculateCidr(parsed.ip, parsed.prefix);
+      return calculateForIp(parsed.ip, parsed.prefix);
     }
-    if (!isValidIp(ipInput)) return null;
-    return calculateCidr(ipInput, prefixInput);
+    if (!isValidAnyIp(ipInput)) return null;
+    return calculateForIp(ipInput, prefixInput);
   }, [mode, cidrInput, ipInput, prefixInput]);
 
   const hasInput = mode === 'cidr' ? cidrInput.trim().length > 0 : ipInput.trim().length > 0;
@@ -210,9 +298,10 @@ export default function CidrCalculator() {
       if (parsed) {
         setMode('cidr');
         setCidrInput(text.trim());
-      } else if (isValidIp(text.trim())) {
+      } else if (isValidAnyIp(text.trim())) {
         setMode('separate');
         setIpInput(text.trim());
+        setPrefixInput(parseIpv6(text.trim()) !== null ? 64 : 24);
       } else {
         setMode('cidr');
         setCidrInput(text.trim());
@@ -230,17 +319,17 @@ export default function CidrCalculator() {
   const resultRows = result
     ? [
         { label: 'Network Address', value: result.networkAddress },
-        { label: 'Broadcast Address', value: result.broadcastAddress },
-        { label: 'First Usable Host', value: result.firstHost },
-        { label: 'Last Usable Host', value: result.lastHost },
-        { label: 'Subnet Mask', value: result.subnetMask },
-        { label: 'Wildcard Mask', value: result.wildcardMask },
+        { label: result.family === 'IPv4' ? 'Broadcast Address' : 'Broadcast', value: result.broadcastAddress },
+        { label: result.family === 'IPv4' ? 'First Usable Host' : 'First Address', value: result.firstHost },
+        { label: result.family === 'IPv4' ? 'Last Usable Host' : 'Last Address', value: result.lastHost },
+        { label: 'Network Mask', value: result.subnetMask },
+        { label: 'Host Mask', value: result.wildcardMask },
         { label: 'Total Addresses', value: result.totalAddresses.toLocaleString() },
-        { label: 'Usable Hosts', value: result.usableHosts.toLocaleString() },
-        { label: 'IP Class', value: `Class ${result.ipClass}` },
+        { label: result.family === 'IPv4' ? 'Usable Hosts' : 'Usable Addresses', value: result.usableHosts.toLocaleString() },
+        ...(result.family === 'IPv4' ? [{ label: 'IP Class', value: `Class ${result.ipClass}` }] : []),
         { label: 'CIDR Notation', value: `${result.networkAddress}/${result.prefix}` },
         { label: 'Binary Mask', value: result.binaryMask },
-        { label: 'IP Type', value: result.isPrivate ? 'Private (RFC 1918)' : 'Public' },
+        { label: 'IP Type', value: result.isPrivate ? (result.family === 'IPv4' ? 'Private (RFC 1918)' : 'Unique local (RFC 4193)') : 'Global / special-use' },
       ]
     : [];
 
@@ -287,7 +376,7 @@ export default function CidrCalculator() {
             onChange={(e) => setCidrInput(e.target.value)}
             placeholder="e.g., 192.168.1.0/24"
             error={hasError}
-            helperText={hasError ? 'Invalid CIDR notation (expected format: x.x.x.x/n)' : undefined}
+            helperText={hasError ? 'Invalid IPv4 or IPv6 CIDR notation' : 'Examples: 192.168.1.0/24 or 2001:db8::/32'}
             slotProps={{
               input: {
                 endAdornment: (
@@ -314,15 +403,20 @@ export default function CidrCalculator() {
             }}
           />
         ) : (
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
             <TextField
               label="IP Address"
               fullWidth
               value={ipInput}
-              onChange={(e) => setIpInput(e.target.value)}
-              placeholder="e.g., 192.168.1.0"
-              error={!!ipInput.trim() && !isValidIp(ipInput)}
-              helperText={ipInput.trim() && !isValidIp(ipInput) ? 'Invalid IP address' : undefined}
+              onChange={(e) => {
+                const value = e.target.value;
+                setIpInput(value);
+                if (parseIpv6(value) !== null && prefixInput > 128) setPrefixInput(64);
+                if (isValidIp(value) && prefixInput > 32) setPrefixInput(24);
+              }}
+              placeholder="e.g., 192.168.1.0 or 2001:db8::1"
+              error={!!ipInput.trim() && !isValidAnyIp(ipInput)}
+              helperText={ipInput.trim() && !isValidAnyIp(ipInput) ? 'Invalid IPv4 or IPv6 address' : undefined}
               slotProps={{
                 input: {
                   endAdornment: (
@@ -363,7 +457,7 @@ export default function CidrCalculator() {
                 },
               }}
             >
-              {Array.from({ length: 25 }, (_, i) => i + 8).map((p) => (
+              {Array.from({ length: parseIpv6(ipInput) !== null ? 129 : 33 }, (_, i) => i).map((p) => (
                 <MenuItem key={p} value={p}>/{p}</MenuItem>
               ))}
             </TextField>
@@ -401,6 +495,7 @@ export default function CidrCalculator() {
                   key={row.label}
                   sx={{
                     display: 'flex',
+                    flexWrap: { xs: 'wrap', sm: 'nowrap' },
                     alignItems: 'center',
                     gap: 2,
                     px: 2,
@@ -412,7 +507,7 @@ export default function CidrCalculator() {
                     },
                   }}
                 >
-                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary', minWidth: 130 }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary', minWidth: { xs: 'calc(100% - 40px)', sm: 130 } }}>
                     {row.label}
                   </Typography>
                   <Typography
@@ -440,16 +535,12 @@ export default function CidrCalculator() {
         {result && (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Chip
-              label={result.isPrivate ? 'Private (RFC 1918)' : 'Public'}
+              label={result.isPrivate ? (result.family === 'IPv4' ? 'Private (RFC 1918)' : 'Unique local (RFC 4193)') : 'Global / special-use'}
               color={result.isPrivate ? 'info' : 'warning'}
               variant="outlined"
               size="small"
             />
-            <Chip
-              label={`Class ${result.ipClass}`}
-              variant="outlined"
-              size="small"
-            />
+            <Chip label={result.family} variant="outlined" size="small" />
           </Box>
         )}
 
@@ -499,6 +590,14 @@ export default function CidrCalculator() {
                   },
                 }}
                 onClick={() => handlePreset(`192.168.1.0${row.cidr}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handlePreset(`192.168.1.0${row.cidr}`);
+                  }
+                }}
               >
                 <Typography
                   sx={{

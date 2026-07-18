@@ -20,6 +20,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
+import Ajv, { type ErrorObject } from 'ajv';
 import { copyToClipboard, readFileAsText } from '../../utils/file';
 
 // ---------------------------------------------------------------------------
@@ -95,12 +96,47 @@ function deepEqual(a: unknown, b: unknown): boolean {
 function resolveRef(schema: JsonSchema, rootSchema: JsonSchema): JsonSchema {
   if (!schema.$ref) return schema;
   const ref = schema.$ref;
-  if (ref.startsWith('#/definitions/')) {
-    const defName = ref.slice('#/definitions/'.length);
-    const resolved = rootSchema.definitions?.[defName];
-    if (resolved) return resolved;
+  if (ref.startsWith('#/')) {
+    const resolved = ref.slice(2).split('/').reduce<unknown>((current, segment) => {
+      if (!current || typeof current !== 'object') return undefined;
+      const key = segment.replace(/~1/g, '/').replace(/~0/g, '~');
+      return (current as Record<string, unknown>)[key];
+    }, rootSchema);
+    if (resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
+      return resolved as JsonSchema;
+    }
   }
   return schema;
+}
+
+const createAjv = () => new Ajv({ allErrors: true, strict: false, allowUnionTypes: true });
+
+function pointerToPath(pointer: string): string {
+  if (!pointer) return '$';
+  return pointer.split('/').slice(1).reduce((path, segment) => {
+    const key = segment.replace(/~1/g, '/').replace(/~0/g, '~');
+    return /^\d+$/.test(key)
+      ? `${path}[${key}]`
+      : /^[A-Za-z_$][\w$]*$/.test(key)
+        ? `${path}.${key}`
+        : `${path}[${JSON.stringify(key)}]`;
+  }, '$');
+}
+
+function mapAjvErrors(errors: ErrorObject[] | null | undefined): ValidationError[] {
+  return (errors ?? []).map((error) => {
+    let path = pointerToPath(error.instancePath);
+    if (error.keyword === 'required' && typeof error.params.missingProperty === 'string') {
+      path += /^[A-Za-z_$][\w$]*$/.test(error.params.missingProperty)
+        ? `.${error.params.missingProperty}`
+        : `[${JSON.stringify(error.params.missingProperty)}]`;
+    }
+    return {
+      path,
+      message: error.message ?? `Failed ${error.keyword} validation`,
+      keyword: error.keyword,
+    };
+  });
 }
 
 function validateValue(
@@ -382,7 +418,10 @@ function validateValue(
 }
 
 function validate(schema: JsonSchema, data: unknown): ValidationError[] {
-  return validateValue(data, schema, '$', schema);
+  const validator = createAjv().compile(schema);
+  if (validator(data)) return [];
+  const errors = mapAjvErrors(validator.errors);
+  return errors.length > 0 ? errors : validateValue(data, schema, '$', schema);
 }
 
 // ---------------------------------------------------------------------------
@@ -409,19 +448,25 @@ function generateSample(schema: JsonSchema, rootSchema: JsonSchema, depth = 0): 
   switch (type) {
     case 'string': {
       if (resolved.pattern) return '<pattern>';
-      if (resolved.minLength) return 'a'.repeat(resolved.minLength);
+      if (resolved.minLength) {
+        if (resolved.minLength > 10_000) throw new Error('minLength is too large to generate safely');
+        return 'a'.repeat(resolved.minLength);
+      }
       return 'string';
     }
     case 'number':
-      return resolved.minimum ?? resolved.exclusiveMinimum != null ? (resolved.exclusiveMinimum! + 1) : 0;
+      if (resolved.minimum !== undefined) return resolved.minimum;
+      return resolved.exclusiveMinimum !== undefined ? resolved.exclusiveMinimum + 1 : 0;
     case 'integer':
-      return resolved.minimum ?? resolved.exclusiveMinimum != null ? Math.ceil(resolved.exclusiveMinimum! + 1) : 0;
+      if (resolved.minimum !== undefined) return Math.ceil(resolved.minimum);
+      return resolved.exclusiveMinimum !== undefined ? Math.floor(resolved.exclusiveMinimum) + 1 : 0;
     case 'boolean':
       return true;
     case 'null':
       return null;
     case 'array': {
       const count = resolved.minItems ?? 1;
+      if (count > 1_000) throw new Error('minItems is too large to generate safely');
       if (resolved.items) {
         if (Array.isArray(resolved.items)) {
           return resolved.items.map((s) => generateSample(s, rootSchema, depth + 1));
@@ -452,6 +497,7 @@ function generateSample(schema: JsonSchema, rootSchema: JsonSchema, depth = 0): 
       }
       if (resolved.items) {
         const count = resolved.minItems ?? 1;
+        if (count > 1_000) throw new Error('minItems is too large to generate safely');
         if (Array.isArray(resolved.items)) {
           return resolved.items.map((s) => generateSample(s, rootSchema, depth + 1));
         }
@@ -609,9 +655,12 @@ export default function StructuredOutputValidator() {
     let parsedSchema: JsonSchema;
     try {
       parsedSchema = JSON.parse(schemaInput);
-      result.schema = parsedSchema;
+      createAjv().compile(parsedSchema);
+      result.schema = parsedSchema && typeof parsedSchema === 'object' && !Array.isArray(parsedSchema)
+        ? parsedSchema
+        : null;
     } catch (e) {
-      result.schemaError = (e as Error).message;
+      result.schemaError = (e as Error).message || 'Invalid JSON Schema';
       return result;
     }
 
@@ -624,9 +673,14 @@ export default function StructuredOutputValidator() {
       return result;
     }
 
-    const errors = validate(parsedSchema, parsedOutput);
-    result.validationErrors = errors;
-    result.isValid = errors.length === 0;
+    try {
+      const errors = validate(parsedSchema, parsedOutput);
+      result.validationErrors = errors;
+      result.isValid = errors.length === 0;
+    } catch (e) {
+      result.schemaError = (e as Error).message || 'Invalid JSON Schema';
+      result.schema = null;
+    }
     return result;
   }, [schemaInput, outputInput]);
 
@@ -699,8 +753,8 @@ export default function StructuredOutputValidator() {
       const sample = generateSample(schema, schema);
       setOutputInput(JSON.stringify(sample, null, 2));
       enqueueSnackbar('Generated sample output', { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Failed to generate sample', { variant: 'error' });
+    } catch (error) {
+      enqueueSnackbar((error as Error).message || 'Failed to generate sample', { variant: 'error' });
     }
   };
 
@@ -883,6 +937,7 @@ export default function StructuredOutputValidator() {
               </Box>
               <Box
                 component="textarea"
+                aria-label="JSON Schema"
                 value={schemaInput}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSchemaInput(e.target.value)}
                 placeholder='{\n  "type": "object",\n  "properties": { ... },\n  "required": [ ... ]\n}'
@@ -974,6 +1029,7 @@ export default function StructuredOutputValidator() {
               </Box>
               <Box
                 component="textarea"
+                aria-label="JSON output to validate"
                 value={outputInput}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setOutputInput(e.target.value)}
                 placeholder='Paste the LLM JSON output here...'

@@ -18,42 +18,48 @@ import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PageHead from '../../components/PageHead';
 import { useSnackbar } from 'notistack';
-import { copyToClipboard, downloadFile } from '../../utils/file';
+import { copyToClipboard } from '../../utils/file';
 
 type UuidVersion = 'v4' | 'v7';
 
 function generateUUIDv4(): string {
-  return crypto.randomUUID();
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  return formatUuid(bytes);
 }
 
 function generateUUIDv7(): string {
   const timestamp = Date.now();
-  const timeHex = timestamp.toString(16).padStart(12, '0');
-  const randomBytes = new Uint8Array(10);
-  crypto.getRandomValues(randomBytes);
-  const hex = Array.from(randomBytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  // format: tttttttt-tttt-7xxx-yxxx-xxxxxxxxxxxx
-  const raw =
-    timeHex.slice(0, 8) +
-    timeHex.slice(8, 12) +
-    '7' +
-    hex.slice(0, 3) +
-    ((parseInt(hex.slice(3, 4), 16) & 0x3) | 0x8).toString(16) +
-    hex.slice(4, 7) +
-    hex.slice(7, 19);
-  return (
-    raw.slice(0, 8) +
-    '-' +
-    raw.slice(8, 12) +
-    '-' +
-    raw.slice(12, 16) +
-    '-' +
-    raw.slice(16, 20) +
-    '-' +
-    raw.slice(20, 32)
-  );
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let time = timestamp;
+  for (let i = 5; i >= 0; i -= 1) {
+    bytes[i] = time % 256;
+    time = Math.floor(time / 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x70;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  return formatUuid(bytes);
+}
+
+function formatUuid(bytes: Uint8Array): string {
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function downloadText(filename: string, content: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function UuidGenerator() {
@@ -66,10 +72,16 @@ export default function UuidGenerator() {
   const isDark = theme.palette.mode === 'dark';
 
   const generate = useCallback(() => {
-    const gen = version === 'v4' ? generateUUIDv4 : generateUUIDv7;
-    const results = Array.from({ length: Math.min(count, 500) }, () => gen());
-    setUuids(uppercase ? results.map((u) => u.toUpperCase()) : results);
-  }, [version, count, uppercase]);
+    try {
+      const gen = version === 'v4' ? generateUUIDv4 : generateUUIDv7;
+      const safeCount = Math.max(1, Math.min(500, Math.trunc(count)));
+      const results = Array.from({ length: safeCount }, () => gen());
+      setUuids(uppercase ? results.map((uuid) => uuid.toUpperCase()) : results);
+    } catch {
+      setUuids([]);
+      enqueueSnackbar('Secure UUID generation is unavailable in this browser', { variant: 'error' });
+    }
+  }, [version, count, uppercase, enqueueSnackbar]);
 
   const handleCopyAll = async () => {
     const ok = await copyToClipboard(uuids.join('\n'));
@@ -82,7 +94,11 @@ export default function UuidGenerator() {
   };
 
   const handleDownload = () => {
-    downloadFile('uuids.txt', uuids.join('\n'), 'text/plain');
+    try {
+      downloadText('uuids.txt', uuids.join('\n'));
+    } catch {
+      enqueueSnackbar('Failed to download UUIDs', { variant: 'error' });
+    }
   };
 
   return (
@@ -116,8 +132,14 @@ export default function UuidGenerator() {
           <ToggleButtonGroup
             value={version}
             exclusive
-            onChange={(_, v) => v && setVersion(v)}
+            onChange={(_, v) => {
+              if (v) {
+                setVersion(v);
+                setUuids([]);
+              }
+            }}
             size="small"
+            aria-label="UUID version"
           >
             <ToggleButton value="v4">UUID v4</ToggleButton>
             <ToggleButton value="v7">UUID v7</ToggleButton>
@@ -128,7 +150,7 @@ export default function UuidGenerator() {
             type="number"
             size="small"
             value={count}
-            onChange={(e) => setCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+            onChange={(e) => setCount(Math.max(1, Math.min(500, Math.trunc(Number(e.target.value) || 1))))}
             sx={{ width: 100 }}
             slotProps={{ input: { inputProps: { min: 1, max: 500 } } }}
           />
@@ -136,8 +158,17 @@ export default function UuidGenerator() {
           <ToggleButtonGroup
             value={uppercase ? 'upper' : 'lower'}
             exclusive
-            onChange={(_, v) => v && setUppercase(v === 'upper')}
+            onChange={(_, v) => {
+              if (v) {
+                const nextUppercase = v === 'upper';
+                setUppercase(nextUppercase);
+                setUuids((current) => current.map((uuid) => (
+                  nextUppercase ? uuid.toUpperCase() : uuid.toLowerCase()
+                )));
+              }
+            }}
             size="small"
+            aria-label="UUID letter case"
           >
             <ToggleButton value="lower">lowercase</ToggleButton>
             <ToggleButton value="upper">UPPERCASE</ToggleButton>
@@ -163,7 +194,7 @@ export default function UuidGenerator() {
         {/* Results */}
         {uuids.length > 0 && (
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', mb: 1, gap: 1 }}>
               <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Results
               </Typography>
@@ -175,7 +206,7 @@ export default function UuidGenerator() {
                 Download
               </Button>
               <Tooltip title="Clear">
-                <IconButton size="small" onClick={() => setUuids([])}>
+                <IconButton size="small" onClick={() => setUuids([])} aria-label="Clear UUIDs">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -220,12 +251,19 @@ export default function UuidGenerator() {
                       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                       fontSize: '0.875rem',
                       flex: 1,
+                      minWidth: 0,
+                      overflowWrap: 'anywhere',
                     }}
                   >
                     {uuid}
                   </Typography>
                   <Tooltip title="Copy">
-                    <IconButton size="small" onClick={() => handleCopyOne(uuid)} sx={{ color: 'text.secondary' }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopyOne(uuid)}
+                      aria-label={`Copy UUID ${i + 1}`}
+                      sx={{ color: 'text.secondary' }}
+                    >
                       <ContentCopyIcon sx={{ fontSize: 14 }} />
                     </IconButton>
                   </Tooltip>
