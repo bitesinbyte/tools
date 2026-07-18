@@ -18,6 +18,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import GitHubIcon from '@mui/icons-material/GitHub';
+import XIcon from '@mui/icons-material/X';
 import ArticleIcon from '@mui/icons-material/Article';
 import CoffeeIcon from '@mui/icons-material/Coffee';
 import SearchIcon from '@mui/icons-material/Search';
@@ -177,6 +178,7 @@ export default function Home() {
               { label: 'GitHub', href: 'https://github.com/lamplitlabs', icon: <GitHubIcon sx={{ fontSize: 18 }} /> },
               { label: 'Blog', href: 'https://blogs.lamplitlabs.com', icon: <ArticleIcon sx={{ fontSize: 18 }} /> },
               { label: 'Ko-fi', href: 'https://ko-fi.com/lamplitlabs', icon: <CoffeeIcon sx={{ fontSize: 18 }} /> },
+              { label: 'X', href: 'https://x.com/lamplitlabs', icon: <XIcon sx={{ fontSize: 18 }} /> },
             ].map((item) => (
               <Tooltip key={item.label} title={item.label}>
                 <IconButton

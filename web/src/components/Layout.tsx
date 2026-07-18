@@ -25,6 +25,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import ArticleIcon from '@mui/icons-material/Article';
 import CoffeeIcon from '@mui/icons-material/Coffee';
 import GitHubIcon from '@mui/icons-material/GitHub';
+import XIcon from '@mui/icons-material/X';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -46,6 +47,7 @@ const socialLinks = [
   { label: 'Blog', href: 'https://blogs.lamplitlabs.com', icon: <ArticleIcon sx={{ fontSize: 16 }} /> },
   { label: 'Ko-fi', href: 'https://ko-fi.com/lamplitlabs', icon: <CoffeeIcon sx={{ fontSize: 16 }} /> },
   { label: 'GitHub', href: 'https://github.com/lamplitlabs', icon: <GitHubIcon sx={{ fontSize: 16 }} /> },
+  { label: 'X', href: 'https://x.com/lamplitlabs', icon: <XIcon sx={{ fontSize: 16 }} /> },
 ];
 
 function PageLoading() {
