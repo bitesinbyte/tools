@@ -785,7 +785,7 @@ export default function StructuredOutputValidator() {
   return (
     <>
       <PageHead
-        title="Structured Output Validator - BitesInByte Tools"
+        title="Structured Output Validator - Lamplit Labs Tools"
         description="Validate LLM JSON output against a JSON Schema. Real-time validation with detailed error paths, type checking, and schema templates."
       />
       <Stack spacing={2.5}>

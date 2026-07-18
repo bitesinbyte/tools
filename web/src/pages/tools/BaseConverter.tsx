@@ -179,7 +179,7 @@ export default function BaseConverter() {
   return (
     <>
       <PageHead
-        title="Base Converter - BitesInByte Tools"
+        title="Base Converter - Lamplit Labs Tools"
         description="Convert numbers between binary, octal, decimal, and hexadecimal with BigInt support. Free online base converter."
       />
       <Stack spacing={2.5}>

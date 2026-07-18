@@ -245,7 +245,7 @@ export default function HashGenerator() {
   return (
     <>
       <PageHead
-        title="Hash Generator - BitesInByte Tools"
+        title="Hash Generator - Lamplit Labs Tools"
         description="Generate MD5, SHA-1, SHA-256, SHA-384, and SHA-512 hashes for text and files. Free online hash generator."
       />
       <Stack spacing={2.5}>

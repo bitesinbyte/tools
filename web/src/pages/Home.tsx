@@ -59,7 +59,7 @@ export default function Home() {
   return (
     <>
       <PageHead
-        title="BitesInByte - Free Developer Tools"
+        title="Lamplit Labs - Free Developer Tools"
         description="Free browser-based developer tools: JSON formatter, YAML validator, JWT decoder, text compare, encode/decode, CSV delimiter changer, cron tester, and JSON/YAML converters."
       />
 
@@ -174,9 +174,9 @@ export default function Home() {
             }}
           >
             {[
-              { label: 'GitHub', href: 'https://github.com/bitesinbyte', icon: <GitHubIcon sx={{ fontSize: 18 }} /> },
-              { label: 'Blog', href: 'https://blogs.bitesinbyte.com', icon: <ArticleIcon sx={{ fontSize: 18 }} /> },
-              { label: 'Ko-fi', href: 'https://ko-fi.com/bitesinbyte', icon: <CoffeeIcon sx={{ fontSize: 18 }} /> },
+              { label: 'GitHub', href: 'https://github.com/lamplitlabs', icon: <GitHubIcon sx={{ fontSize: 18 }} /> },
+              { label: 'Blog', href: 'https://blogs.lamplitlabs.com', icon: <ArticleIcon sx={{ fontSize: 18 }} /> },
+              { label: 'Ko-fi', href: 'https://ko-fi.com/lamplitlabs', icon: <CoffeeIcon sx={{ fontSize: 18 }} /> },
             ].map((item) => (
               <Tooltip key={item.label} title={item.label}>
                 <IconButton

@@ -79,7 +79,7 @@ export default function AiPricingCalculator() {
   return (
     <>
       <PageHead
-        title="AI Pricing Calculator - BitesInByte Tools"
+        title="AI Pricing Calculator - Lamplit Labs Tools"
         description="Calculate API costs for GPT-4, Claude, Gemini, Llama and more. Estimate daily, monthly, and yearly spend."
       />
       <Stack spacing={2.5}>

@@ -119,7 +119,7 @@ export default function JsonFormatter() {
   return (
     <>
       <PageHead
-        title="JSON Formatter & Validator - BitesInByte Tools"
+        title="JSON Formatter & Validator - Lamplit Labs Tools"
         description="Format, validate, minify, and beautify JSON online with syntax highlighting. Free browser-based JSON formatter."
       />
       <Stack spacing={2.5}>

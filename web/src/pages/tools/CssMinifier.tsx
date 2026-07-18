@@ -335,7 +335,7 @@ export default function CssMinifier() {
   return (
     <>
       <PageHead
-        title="CSS Minifier & Beautifier - BitesInByte Tools"
+        title="CSS Minifier & Beautifier - Lamplit Labs Tools"
         description="Minify and beautify CSS online. Remove whitespace and comments or format CSS with proper indentation. Free browser-based CSS tool."
       />
       <Stack spacing={2.5}>

@@ -172,7 +172,7 @@ export default function HttpStatusCodes() {
   return (
     <>
       <PageHead
-        title="HTTP Status Codes Reference - BitesInByte Tools"
+        title="HTTP Status Codes Reference - Lamplit Labs Tools"
         description="Complete HTTP status code reference with descriptions. Search and filter by category: 1xx Informational, 2xx Success, 3xx Redirection, 4xx Client Error, 5xx Server Error."
       />
       <Stack spacing={2.5}>

@@ -148,7 +148,7 @@ export default function FunctionCallBuilder() {
   return (
     <>
       <PageHead
-        title="Function Call Schema Builder - BitesInByte Tools"
+        title="Function Call Schema Builder - Lamplit Labs Tools"
         description="Build OpenAI function calling / tool JSON schemas visually. Free online schema builder."
       />
       <Stack spacing={2.5}>

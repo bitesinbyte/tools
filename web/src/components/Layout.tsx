@@ -38,14 +38,14 @@ import Logo from './Logo';
 /* ── Desktop nav links (shown as text in the header) ─── */
 const desktopNavLinks = [
   { label: 'Tools', to: '/' },
-  { label: 'Blog', href: 'https://blogs.bitesinbyte.com' },
+  { label: 'Blog', href: 'https://blogs.lamplitlabs.com' },
 ];
 
 /* ── External social links ───────────────────────────── */
 const socialLinks = [
-  { label: 'Blog', href: 'https://blogs.bitesinbyte.com', icon: <ArticleIcon sx={{ fontSize: 16 }} /> },
-  { label: 'Ko-fi', href: 'https://ko-fi.com/bitesinbyte', icon: <CoffeeIcon sx={{ fontSize: 16 }} /> },
-  { label: 'GitHub', href: 'https://github.com/bitesinbyte', icon: <GitHubIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Blog', href: 'https://blogs.lamplitlabs.com', icon: <ArticleIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Ko-fi', href: 'https://ko-fi.com/lamplitlabs', icon: <CoffeeIcon sx={{ fontSize: 16 }} /> },
+  { label: 'GitHub', href: 'https://github.com/lamplitlabs', icon: <GitHubIcon sx={{ fontSize: 16 }} /> },
 ];
 
 function PageLoading() {
@@ -157,7 +157,7 @@ export default function Layout() {
                   fontSize: '1.125rem',
                 }}
               >
-                Bites In Byte
+                Lamplit Labs
               </Typography>
             </Box>
 
@@ -430,11 +430,11 @@ export default function Layout() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <Logo sx={{ fontSize: 24, color: 'text.primary' }} />
                 <Typography sx={{ fontWeight: 600, fontSize: '1rem', letterSpacing: '-0.025em' }}>
-                  Bites In Byte
+                  Lamplit Labs
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                Small, practical software packed into every byte.
+                Practical tools for real problems.
               </Typography>
             </Box>
 
@@ -472,9 +472,9 @@ export default function Layout() {
               <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {[
                   { label: 'All Tools', to: '/' },
-                  { label: 'Blog', href: 'https://blogs.bitesinbyte.com' },
+                  { label: 'Blog', href: 'https://blogs.lamplitlabs.com' },
                   { label: 'Privacy Policy', to: '/privacy-policy' },
-                  { label: 'Contact', href: 'https://github.com/bitesinbyte/tools/discussions/categories/q-a' },
+                  { label: 'Contact', href: 'https://github.com/lamplitlabs/tools/discussions/categories/q-a' },
                 ].map((item) => (
                   <li key={item.label}>
                     {item.to ? (
@@ -549,7 +549,7 @@ export default function Layout() {
           {/* Copyright */}
           <Box sx={{ mt: 5, pt: 3, borderTop: 1, borderColor: 'divider', textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-              &copy; {new Date().getFullYear()} Bites In Byte. All rights reserved.
+              &copy; {new Date().getFullYear()} Lamplit Labs. All rights reserved.
             </Typography>
           </Box>
         </Container>

@@ -4,15 +4,15 @@ import PageHead from '../components/PageHead';
 export default function PrivacyPolicy() {
   return (
     <>
-      <PageHead title="Privacy Policy - BitesInByte" description="BitesInByte privacy statement and cookie policy." />
+      <PageHead title="Privacy Policy - Lamplit Labs" description="Lamplit Labs privacy statement and cookie policy." />
       <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', py: { xs: 2, md: 4 } }}>
-        <Typography component="h1" variant="h4">Bites In Byte Privacy Statement</Typography>
+        <Typography component="h1" variant="h4">Lamplit Labs Privacy Statement</Typography>
 
         <Typography component="h2" variant="h6" sx={{ mt: 2 }}>1. Acknowledgment and Acceptance of Terms</Typography>
         <Typography variant="body1" color="text.secondary">
-          bitesinbyte is committed to protecting your privacy. This Privacy Statement sets forth our current privacy
-          practices with regard to the information we collect when you or your computer interact with bitesinbyte.com.
-          By accessing bitesinbyte.com, you acknowledge and fully understand our Privacy Statement and freely consent
+          Lamplit Labs is committed to protecting your privacy. This Privacy Statement sets forth our current privacy
+          practices with regard to the information we collect when you or your computer interact with lamplitlabs.com.
+          By accessing lamplitlabs.com, you acknowledge and fully understand our Privacy Statement and freely consent
           to the information collection and use practices described in this Website Privacy Statement.
         </Typography>
 
@@ -20,8 +20,8 @@ export default function PrivacyPolicy() {
         <Typography variant="body1" color="text.secondary">
           Related services and offerings with links from this website, including all other websites, have their own
           privacy statements that can be viewed by clicking on the corresponding links within each respective website.
-          All bitesinbyte advertising clients are encouraged to participate in industry privacy initiatives and to take
-          a responsible attitude towards consumer privacy. bitesinbyte is not responsible for the privacy practices or
+          All Lamplit Labs advertising clients are encouraged to participate in industry privacy initiatives and to take
+          a responsible attitude towards consumer privacy. Lamplit Labs is not responsible for the privacy practices or
           contents of third-party or client websites. We recommend and encourage that you always review the privacy
           policies of merchants and other third parties before you provide any personal information or complete any
           transaction with such parties.
@@ -29,9 +29,9 @@ export default function PrivacyPolicy() {
 
         <Typography component="h2" variant="h6">3. Information We Collect and How We Use It</Typography>
         <Typography variant="body1" color="text.secondary">
-          bitesinbyte collects certain information from and about its users three ways: directly from our Web Server
+          Lamplit Labs collects certain information from and about its users three ways: directly from our Web Server
           logs, the user, and with Cookies. When you visit our Website, we may track information to administer the
-          site and analyze its usage for the purpose of serving our visitors and customers better. bitesinbyte reserves
+          site and analyze its usage for the purpose of serving our visitors and customers better. Lamplit Labs reserves
           the right to use contact information collected through advertising campaigns and other methods for commercial
           marketing purposes.
         </Typography>
@@ -75,14 +75,14 @@ export default function PrivacyPolicy() {
 
         <Typography component="h2" variant="h6">5. Changes to This Statement</Typography>
         <Typography variant="body1" color="text.secondary">
-          bitesinbyte has the discretion to occasionally update this privacy statement. We encourage you to
+          Lamplit Labs has the discretion to occasionally update this privacy statement. We encourage you to
           periodically review this privacy statement to stay informed about how we are helping to protect the personal
           information we collect. If you have questions regarding our Privacy Statement, please{' '}
           <Link
-            href="https://github.com/bitesinbyte/tools/discussions/categories/q-a"
+            href="https://github.com/lamplitlabs/tools/discussions/categories/q-a"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Contact Bites In Byte (opens in a new tab)"
+            aria-label="Contact Lamplit Labs (opens in a new tab)"
             sx={{ color: 'text.primary' }}
           >
             contact us

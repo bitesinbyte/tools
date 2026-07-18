@@ -155,7 +155,7 @@ export default function JsonYamlConverter() {
   return (
     <>
       <PageHead
-        title="JSON / YAML Converter - BitesInByte Tools"
+        title="JSON / YAML Converter - Lamplit Labs Tools"
         description="Convert between JSON and YAML formats instantly with real-time conversion and auto-detection."
       />
       <Stack spacing={2.5}>

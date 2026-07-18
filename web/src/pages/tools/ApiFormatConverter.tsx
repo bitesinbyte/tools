@@ -225,7 +225,7 @@ export default function ApiFormatConverter() {
   return (
     <>
       <PageHead
-        title="AI API Format Converter - BitesInByte Tools"
+        title="AI API Format Converter - Lamplit Labs Tools"
         description="Convert between OpenAI, Anthropic, Google Gemini, and Ollama API formats."
       />
       <Stack spacing={2.5}>

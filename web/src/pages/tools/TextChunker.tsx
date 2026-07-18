@@ -166,7 +166,7 @@ export default function TextChunker() {
   return (
     <>
       <PageHead
-        title="Text Chunker for RAG - BitesInByte Tools"
+        title="Text Chunker for RAG - Lamplit Labs Tools"
         description="Split text into chunks by tokens, sentences, paragraphs, or characters for RAG pipelines."
       />
       <Stack spacing={2.5}>

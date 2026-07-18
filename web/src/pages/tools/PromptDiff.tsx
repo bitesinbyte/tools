@@ -132,7 +132,7 @@ export default function PromptDiff() {
   return (
     <>
       <PageHead
-        title="Prompt Diff & Versioner - BitesInByte Tools"
+        title="Prompt Diff & Versioner - Lamplit Labs Tools"
         description="Compare and version your AI prompts. Track changes between prompt iterations."
       />
       <Stack spacing={2.5}>

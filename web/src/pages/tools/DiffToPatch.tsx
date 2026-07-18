@@ -589,7 +589,7 @@ export default function DiffToPatch() {
   return (
     <>
       <PageHead
-        title="Diff to Patch Converter - BitesInByte Tools"
+        title="Diff to Patch Converter - Lamplit Labs Tools"
         description="Generate unified diffs from text comparison or apply patches to files. Free online diff and patch tool."
       />
       <Stack spacing={2.5}>

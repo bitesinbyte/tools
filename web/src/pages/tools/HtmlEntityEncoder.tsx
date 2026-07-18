@@ -104,7 +104,7 @@ export default function HtmlEntityEncoder() {
   return (
     <>
       <PageHead
-        title="HTML Entity Encoder - BitesInByte Tools"
+        title="HTML Entity Encoder - Lamplit Labs Tools"
         description="Encode and decode HTML entities. Convert special characters to HTML entities and back. Free online tool."
       />
       <Stack spacing={2.5}>

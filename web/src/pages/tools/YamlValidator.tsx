@@ -232,7 +232,7 @@ export default function YamlValidator() {
   return (
     <>
       <PageHead
-        title="YAML Schema Validator - BitesInByte Tools"
+        title="YAML Schema Validator - Lamplit Labs Tools"
         description="Validate YAML documents against JSON Schema definitions from schemastore.org."
       />
       <Stack spacing={2.5}>

@@ -177,7 +177,7 @@ export default function ChmodCalculator() {
   return (
     <>
       <PageHead
-        title="Chmod Calculator - BitesInByte Tools"
+        title="Chmod Calculator - Lamplit Labs Tools"
         description="Calculate Linux file permissions with an interactive chmod calculator. Convert between numeric, symbolic, and visual representations."
       />
       <Stack spacing={2.5}>

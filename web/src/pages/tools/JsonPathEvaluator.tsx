@@ -365,7 +365,7 @@ export default function JsonPathEvaluator() {
   return (
     <>
       <PageHead
-        title="JSONPath Evaluator - BitesInByte Tools"
+        title="JSONPath Evaluator - Lamplit Labs Tools"
         description="Evaluate JSONPath expressions against JSON data with live results, recursive descent, wildcards, and array slicing. Free online JSONPath tester."
       />
       <Stack spacing={2.5}>

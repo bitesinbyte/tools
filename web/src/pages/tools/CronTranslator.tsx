@@ -361,7 +361,7 @@ export default function CronTranslator() {
   return (
     <>
       <PageHead
-        title="Cron to English Translator - BitesInByte Tools"
+        title="Cron to English Translator - Lamplit Labs Tools"
         description="Translate cron expressions to human-readable English descriptions. Free online cron translator."
       />
       <Stack spacing={2.5}>

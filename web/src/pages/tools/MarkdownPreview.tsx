@@ -98,7 +98,7 @@ export default function MarkdownPreview() {
   return (
     <>
       <PageHead
-        title="Markdown Preview - BitesInByte Tools"
+        title="Markdown Preview - Lamplit Labs Tools"
         description="Live Markdown editor with side-by-side preview. Supports GitHub Flavored Markdown. Free online markdown previewer."
       />
       <Stack spacing={2.5}>

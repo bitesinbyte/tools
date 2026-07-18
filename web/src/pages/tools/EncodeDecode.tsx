@@ -157,7 +157,7 @@ export default function EncodeDecode() {
   return (
     <>
       <PageHead
-        title="Encode / Decode - BitesInByte Tools"
+        title="Encode / Decode - Lamplit Labs Tools"
         description="Encode and decode strings in Base64, URL, HTML, and SHA-256 formats. Free online encoder/decoder."
       />
       <Stack spacing={2.5}>
